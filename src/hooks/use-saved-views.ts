@@ -11,6 +11,8 @@ export interface SavedView {
   sources: SourceId[];
   timeframe: Timeframe;
   createdAt: string;
+  updatedAt: string;
+  lastScore?: number;
 }
 
 function read(): SavedView[] {
@@ -49,13 +51,15 @@ export function useSavedViews() {
 
   const addView = useCallback(
     (input: Omit<SavedView, "id" | "createdAt">) => {
+      const now = new Date().toISOString();
       const view: SavedView = {
         ...input,
+        updatedAt: input.updatedAt ?? now,
         id:
           (typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
             : `v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
-        createdAt: new Date().toISOString(),
+        createdAt: now,
       };
       const next = [view, ...read()];
       write(next);
@@ -68,5 +72,15 @@ export function useSavedViews() {
     write(read().filter((v) => v.id !== id));
   }, []);
 
-  return { views, loaded, addView, removeView };
+  const updateView = useCallback(
+    (id: string, patch: Partial<Omit<SavedView, "id" | "createdAt">>) => {
+      const next = read().map((v) =>
+        v.id === id ? { ...v, ...patch, updatedAt: new Date().toISOString() } : v,
+      );
+      write(next);
+    },
+    [],
+  );
+
+  return { views, loaded, addView, removeView, updateView };
 }
