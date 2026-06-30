@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import { TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import {
@@ -21,6 +22,46 @@ import {
   type Scorecard,
   type SourceId,
 } from "@/lib/feedback/types";
+
+// Recharts writes the SVG `fill` attribute directly; many browsers will not
+// resolve `var(--token)` or `color-mix(...)` from inside an SVG presentation
+// attribute, so the chart renders blank. Read the resolved values once on
+// mount and feed literal color strings to recharts.
+const FALLBACK = {
+  primary: "#5b4ee0",
+  positive: "#1f9d6d",
+  negative: "#dc4b3e",
+  warn: "#e5a533",
+  muted: "#eef0f4",
+  mutedFg: "#6b7280",
+  border: "#e4e7ec",
+};
+
+function useThemeColors() {
+  const [c, setC] = useState(FALLBACK);
+  useEffect(() => {
+    const s = getComputedStyle(document.documentElement);
+    const read = (k: string, f: string) => {
+      const v = s.getPropertyValue(k).trim();
+      return v || f;
+    };
+    setC({
+      primary: read("--primary", FALLBACK.primary),
+      positive: read("--positive", FALLBACK.positive),
+      negative: read("--negative", FALLBACK.negative),
+      warn: read("--warn", FALLBACK.warn),
+      muted: read("--muted", FALLBACK.muted),
+      mutedFg: read("--muted-foreground", FALLBACK.mutedFg),
+      border: read("--border", FALLBACK.border),
+    });
+  }, []);
+  return c;
+}
+
+function mix(a: string, b: string, pct: number) {
+  // CSS color-mix is broadly supported in modern Chromium/Safari/Firefox.
+  return `color-mix(in oklab, ${a} ${pct}%, ${b})`;
+}
 
 function StatCard({
   label,
@@ -58,12 +99,13 @@ export function DashboardStats({
   scorecard: Scorecard;
   items: FeedbackItem[];
 }) {
+  const c = useThemeColors();
   const breakdown = [
-    { name: "Critical", value: items.filter((i) => i.severity === "critical").length, fill: "var(--negative)" },
-    { name: "Major", value: items.filter((i) => i.severity === "major").length, fill: "color-mix(in oklab, var(--negative) 70%, white)" },
-    { name: "Minor", value: items.filter((i) => i.severity === "minor").length, fill: "var(--warn)" },
-    { name: "Pos. high", value: items.filter((i) => i.impact === "high").length, fill: "var(--positive)" },
-    { name: "Pos. low", value: items.filter((i) => i.impact === "low").length, fill: "color-mix(in oklab, var(--positive) 50%, white)" },
+    { name: "Critical", value: items.filter((i) => i.severity === "critical").length, fill: c.negative },
+    { name: "Major", value: items.filter((i) => i.severity === "major").length, fill: mix(c.negative, "white", 70) },
+    { name: "Minor", value: items.filter((i) => i.severity === "minor").length, fill: c.warn },
+    { name: "Pos. high", value: items.filter((i) => i.impact === "high").length, fill: c.positive },
+    { name: "Pos. low", value: items.filter((i) => i.impact === "low").length, fill: mix(c.positive, "white", 50) },
   ].filter((d) => d.value > 0);
 
   const volume = (Object.entries(scorecard.bySource) as [SourceId, number][])
@@ -132,7 +174,7 @@ export function DashboardStats({
       </StatCard>
 
       <StatCard label="Breakdown">
-        <div className="h-[180px]">
+        <div className="h-[200px]">
           {breakdown.length === 0 ? (
             <div className="grid h-full place-items-center text-xs text-muted-foreground">
               No data
@@ -144,8 +186,8 @@ export function DashboardStats({
                   data={breakdown}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={45}
-                  outerRadius={75}
+                  innerRadius={50}
+                  outerRadius={85}
                   paddingAngle={2}
                   stroke="none"
                 >
@@ -156,7 +198,7 @@ export function DashboardStats({
                 <Tooltip
                   contentStyle={{
                     borderRadius: 8,
-                    border: "1px solid var(--border)",
+                    border: `1px solid ${c.border}`,
                     fontSize: 12,
                   }}
                 />
@@ -179,35 +221,40 @@ export function DashboardStats({
       </StatCard>
 
       <StatCard label="Volume by Source">
-        <div className="h-[220px]">
+        <div className="h-[240px]">
           {volume.length === 0 ? (
             <div className="grid h-full place-items-center text-xs text-muted-foreground">
               No data
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={volume} margin={{ top: 10, right: 5, left: -20, bottom: 0 }}>
+              <BarChart data={volume} margin={{ top: 10, right: 8, left: -18, bottom: 28 }}>
                 <XAxis
                   dataKey="source"
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 10, fill: c.mutedFg }}
                   axisLine={false}
                   tickLine={false}
+                  interval={0}
+                  angle={-30}
+                  textAnchor="end"
+                  height={40}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 10, fill: c.mutedFg }}
                   axisLine={false}
                   tickLine={false}
                   allowDecimals={false}
+                  width={28}
                 />
                 <Tooltip
-                  cursor={{ fill: "var(--muted)" }}
+                  cursor={{ fill: c.muted }}
                   contentStyle={{
                     borderRadius: 8,
-                    border: "1px solid var(--border)",
+                    border: `1px solid ${c.border}`,
                     fontSize: 12,
                   }}
                 />
-                <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="count" fill={c.primary} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -215,34 +262,35 @@ export function DashboardStats({
       </StatCard>
 
       <StatCard label="Sentiment Over Time">
-        <div className="h-[220px]">
+        <div className="h-[240px]">
           {trendData.length === 0 ? (
             <div className="grid h-full place-items-center text-xs text-muted-foreground">
               No data
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <LineChart data={trendData} margin={{ top: 10, right: 12, left: -10, bottom: 8 }}>
                 <XAxis dataKey="x" hide />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 10, fill: c.mutedFg }}
                   axisLine={false}
                   tickLine={false}
+                  width={28}
                 />
                 <Tooltip
                   contentStyle={{
                     borderRadius: 8,
-                    border: "1px solid var(--border)",
+                    border: `1px solid ${c.border}`,
                     fontSize: 12,
                   }}
                 />
                 <Line
                   type="monotone"
                   dataKey="score"
-                  stroke="var(--primary)"
+                  stroke={c.primary}
                   strokeWidth={2}
-                  dot={{ r: 3, fill: "var(--primary)" }}
+                  dot={{ r: 3, fill: c.primary }}
                 />
               </LineChart>
             </ResponsiveContainer>
