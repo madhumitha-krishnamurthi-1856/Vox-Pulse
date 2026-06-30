@@ -36,14 +36,12 @@ export function AppShell({
   const [open, setOpen] = useState(true);
   const { views, loaded } = useSavedViews();
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const search = useRouterState({ select: (r) => r.location.search }) as Record<
-    string,
-    unknown
-  > | null;
-
+  const search = useRouterState({ select: (r) => r.location.search }) as unknown as
+    | Record<string, unknown>
+    | null;
   const activeViewId =
-    typeof search === "object" && search && "view" in search
-      ? String((search as Record<string, unknown>).view)
+    search && typeof search === "object" && "view" in search
+      ? String(search.view)
       : undefined;
 
   return (
