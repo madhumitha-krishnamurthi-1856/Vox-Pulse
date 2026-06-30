@@ -50,7 +50,7 @@ export function useSavedViews() {
   }, []);
 
   const addView = useCallback(
-    (input: Omit<SavedView, "id" | "createdAt">) => {
+    (input: Omit<SavedView, "id" | "createdAt" | "updatedAt"> & { updatedAt?: string }) => {
       const now = new Date().toISOString();
       const view: SavedView = {
         ...input,
