@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ViewsRouteImport } from './routes/views'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ViewIdRouteImport } from './routes/view.$id'
 
 const ViewsRoute = ViewsRouteImport.update({
   id: '/views',
@@ -28,35 +29,44 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ViewIdRoute = ViewIdRouteImport.update({
+  id: '/view/$id',
+  path: '/view/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/search': typeof SearchRoute
   '/views': typeof ViewsRoute
+  '/view/$id': typeof ViewIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/search': typeof SearchRoute
   '/views': typeof ViewsRoute
+  '/view/$id': typeof ViewIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/search': typeof SearchRoute
   '/views': typeof ViewsRoute
+  '/view/$id': typeof ViewIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/search' | '/views'
+  fullPaths: '/' | '/search' | '/views' | '/view/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/search' | '/views'
-  id: '__root__' | '/' | '/search' | '/views'
+  to: '/' | '/search' | '/views' | '/view/$id'
+  id: '__root__' | '/' | '/search' | '/views' | '/view/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SearchRoute: typeof SearchRoute
   ViewsRoute: typeof ViewsRoute
+  ViewIdRoute: typeof ViewIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/view/$id': {
+      id: '/view/$id'
+      path: '/view/$id'
+      fullPath: '/view/$id'
+      preLoaderRoute: typeof ViewIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SearchRoute: SearchRoute,
   ViewsRoute: ViewsRoute,
+  ViewIdRoute: ViewIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
