@@ -1,0 +1,72 @@
+import { useCallback, useEffect, useState } from "react";
+
+import type { SourceId, Timeframe } from "@/lib/feedback/types";
+
+const STORAGE_KEY = "vox-pulse:saved-views";
+
+export interface SavedView {
+  id: string;
+  name: string;
+  keyword: string;
+  sources: SourceId[];
+  timeframe: Timeframe;
+  createdAt: string;
+}
+
+function read(): SavedView[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SavedView[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function write(views: SavedView[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+  window.dispatchEvent(new CustomEvent("vox-pulse:views-updated"));
+}
+
+export function useSavedViews() {
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    setViews(read());
+    setLoaded(true);
+    const onUpdate = () => setViews(read());
+    window.addEventListener("vox-pulse:views-updated", onUpdate);
+    window.addEventListener("storage", onUpdate);
+    return () => {
+      window.removeEventListener("vox-pulse:views-updated", onUpdate);
+      window.removeEventListener("storage", onUpdate);
+    };
+  }, []);
+
+  const addView = useCallback(
+    (input: Omit<SavedView, "id" | "createdAt">) => {
+      const view: SavedView = {
+        ...input,
+        id:
+          (typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+        createdAt: new Date().toISOString(),
+      };
+      const next = [view, ...read()];
+      write(next);
+      return view;
+    },
+    [],
+  );
+
+  const removeView = useCallback((id: string) => {
+    write(read().filter((v) => v.id !== id));
+  }, []);
+
+  return { views, loaded, addView, removeView };
+}
