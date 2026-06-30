@@ -2,10 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SiteHeader } from "@/components/site-header";
 import { useSavedViews } from "@/hooks/use-saved-views";
 import { SOURCE_LABELS, type SourceId } from "@/lib/feedback/types";
 
@@ -18,8 +18,7 @@ function ViewsPage() {
   const { views, loaded, removeView } = useSavedViews();
 
   return (
-    <div className="min-h-screen bg-background">
-      <SiteHeader />
+    <AppShell>
       <main className="mx-auto max-w-4xl px-6 py-12">
         <h1 className="font-serif text-3xl tracking-tight">Saved views</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -29,7 +28,7 @@ function ViewsPage() {
           {!loaded ? (
             Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
           ) : views.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border/60 p-12 text-center text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
               No saved views yet.{" "}
               <Link to="/" className="text-primary underline-offset-4 hover:underline">
                 Start a search
@@ -38,8 +37,8 @@ function ViewsPage() {
             </div>
           ) : (
             views.map((v) => (
-              <Card key={v.id} className="border-border/60 bg-card/40">
-                <CardContent className="flex items-center justify-between gap-4 p-5">
+              <Card key={v.id} className="border-border bg-card">
+                <div className="flex items-center justify-between gap-4 p-5">
                   <div className="min-w-0">
                     <div className="font-medium">{v.name}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
@@ -58,6 +57,7 @@ function ViewsPage() {
                           q: v.keyword,
                           sources: v.sources.join(","),
                           timeframe: v.timeframe,
+                          view: v.id,
                         }}
                       >
                         Re-run
@@ -75,12 +75,12 @@ function ViewsPage() {
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </div>
-                </CardContent>
+                </div>
               </Card>
             ))
           )}
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }

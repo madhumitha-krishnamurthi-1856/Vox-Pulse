@@ -1,18 +1,23 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { Edit3, Link2, RefreshCw } from "lucide-react";
 import { z } from "zod";
 
+import { AppShell } from "@/components/app-shell";
+import { DashboardStats, TopThemes } from "@/components/dashboard-stats";
 import { FeedbackSections } from "@/components/feedback-sections";
+import { FilterBar } from "@/components/filter-bar";
 import { SaveViewDialog } from "@/components/save-view-dialog";
-import { Scorecard } from "@/components/scorecard";
-import { SearchBar } from "@/components/search-bar";
-import { SiteHeader } from "@/components/site-header";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSavedViews } from "@/hooks/use-saved-views";
 import { fetchFeedback } from "@/lib/feedback/fetch.functions";
 import {
   ALL_SOURCES,
   SOURCE_LABELS,
+  type Category,
   type SourceId,
   type Timeframe,
 } from "@/lib/feedback/types";
@@ -21,6 +26,7 @@ const searchSchema = z.object({
   q: z.string().optional().default(""),
   sources: z.string().optional().default(ALL_SOURCES.join(",")),
   timeframe: z.enum(["day", "week", "month", "year", "all"]).optional().default("month"),
+  view: z.string().optional(),
 });
 
 export const Route = createFileRoute("/search")({
@@ -38,7 +44,9 @@ export const Route = createFileRoute("/search")({
 });
 
 function SearchPage() {
-  const { q, sources, timeframe } = Route.useSearch();
+  const { q, sources, timeframe, view } = Route.useSearch();
+  const navigate = useNavigate();
+  const { views, updateView } = useSavedViews();
   const sourceList: SourceId[] = sources
     .split(",")
     .map((s: string) => s.trim())
@@ -47,7 +55,6 @@ function SearchPage() {
     );
 
   const fetchFn = useServerFn(fetchFeedback);
-
   const enabled = q.trim().length >= 2 && sourceList.length > 0;
   const query = useQuery({
     queryKey: ["feedback", q, sourceList.join(","), timeframe],
@@ -59,73 +66,172 @@ function SearchPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const savedView = useMemo(() => views.find((v) => v.id === view), [views, view]);
+
+  // Keep saved view's lastScore in sync
+  useEffect(() => {
+    if (savedView && query.data && query.data.scorecard.score !== savedView.lastScore) {
+      updateView(savedView.id, { lastScore: query.data.scorecard.score });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedView?.id, query.data?.scorecard.score]);
+
+  // Local filter state
+  const [activeSources, setActiveSources] = useState<Set<SourceId>>(new Set(sourceList));
+  useEffect(() => setActiveSources(new Set(sourceList)), [sources]);
+  const [themeFilter, setThemeFilter] = useState<Category | "all">("all");
+  const [textQ, setTextQ] = useState("");
+
+  const filteredItems = useMemo(() => {
+    if (!query.data) return [];
+    return query.data.items.filter((i) => {
+      if (!activeSources.has(i.source)) return false;
+      if (themeFilter !== "all" && i.category !== themeFilter) return false;
+      if (textQ.trim()) {
+        const t = textQ.toLowerCase();
+        if (!`${i.title} ${i.snippet}`.toLowerCase().includes(t)) return false;
+      }
+      return true;
+    });
+  }, [query.data, activeSources, themeFilter, textQ]);
+
+  const timeframeLabel: Record<Timeframe, string> = {
+    day: "Past 24h",
+    week: "Past Week",
+    month: "Past Month",
+    year: "Past Year",
+    all: "All Time",
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <SiteHeader />
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <div className="mb-8">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Home
-          </Link>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="font-serif text-3xl tracking-tight">
-                {q ? <>Listening to <span className="text-primary">{q}</span></> : "Search"}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {sourceList.map((s) => SOURCE_LABELS[s]).join(" · ")} · past {timeframe}
-              </p>
+    <AppShell>
+      <div className="mx-auto w-full max-w-[1400px] px-6 py-8">
+        {/* Header row */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {savedView ? "Saved View" : "Search"}
             </div>
-            {enabled && (
+            <h1 className="mt-1 font-serif text-4xl font-medium tracking-tight">
+              {savedView?.name || q || "Untitled"}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1 text-foreground/70">
+                <Link2 className="h-3 w-3" /> "{q}"
+              </span>
+              <span>·</span>
+              <span>{sourceList.map((s) => SOURCE_LABELS[s]).join(" / ")}</span>
+              <span>·</span>
+              <span className="rounded-full bg-accent px-2 py-0.5 text-accent-foreground">
+                {timeframeLabel[timeframe as Timeframe]}
+              </span>
+              {savedView && (
+                <>
+                  <span>·</span>
+                  <span>Updated {new Date(savedView.updatedAt).toLocaleDateString()}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => query.refetch()}
+              disabled={query.isFetching || !enabled}
+              className="gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            {enabled && !savedView && (
               <SaveViewDialog
                 keyword={q.trim()}
                 sources={sourceList}
                 timeframe={timeframe as Timeframe}
               />
             )}
-          </div>
-        </div>
-
-        <div className="mb-10 rounded-2xl border border-border/60 bg-card/30 p-4 sm:p-6">
-          <SearchBar
-            defaultKeyword={q}
-            defaultSources={sourceList.length ? sourceList : ALL_SOURCES}
-            defaultTimeframe={timeframe as Timeframe}
-          />
-        </div>
-
-        {!enabled ? (
-          <div className="rounded-xl border border-dashed border-border/60 p-12 text-center text-muted-foreground">
-            Enter a keyword and pick at least one source to start listening.
-          </div>
-        ) : query.isLoading ? (
-          <div className="space-y-6">
-            <Skeleton className="h-40 w-full" />
-            <div className="grid gap-4 md:grid-cols-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-36 w-full" />
-              ))}
-            </div>
-          </div>
-        ) : query.isError ? (
-          <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
-            {query.error instanceof Error ? query.error.message : "Something went wrong."}
-          </div>
-        ) : query.data ? (
-          <div className="space-y-8">
-            <Scorecard data={query.data.scorecard} />
-            {Object.keys(query.data.errors).length > 0 && (
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-                Some sources returned no results:{" "}
-                {Object.entries(query.data.errors)
-                  .map(([s]: [string, unknown]) => SOURCE_LABELS[s as SourceId])
-                  .join(", ")}
-              </div>
+            {savedView && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  const next = window.prompt("Rename view", savedView.name);
+                  if (next && next.trim()) updateView(savedView.id, { name: next.trim() });
+                }}
+              >
+                <Edit3 className="h-3.5 w-3.5" />
+                Edit View
+              </Button>
             )}
-            <FeedbackSections items={query.data.items} />
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/">New search</Link>
+            </Button>
           </div>
-        ) : null}
-      </main>
-    </div>
+        </div>
+
+        <div className="mt-8 space-y-6">
+          {!enabled ? (
+            <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
+              Enter a keyword and pick at least one source to start listening.
+            </div>
+          ) : query.isLoading ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-56 w-full" />
+                ))}
+              </div>
+              <Skeleton className="h-24 w-full" />
+              <div className="grid gap-3 md:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-36 w-full" />
+                ))}
+              </div>
+            </>
+          ) : query.isError ? (
+            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-6 text-sm text-destructive">
+              {query.error instanceof Error ? query.error.message : "Something went wrong."}
+            </div>
+          ) : query.data ? (
+            <>
+              <DashboardStats scorecard={query.data.scorecard} items={query.data.items} />
+              <TopThemes scorecard={query.data.scorecard} />
+              {Object.keys(query.data.errors).length > 0 && (
+                <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-foreground/70">
+                  Some sources returned no results:{" "}
+                  {Object.entries(query.data.errors)
+                    .map(([s]) => SOURCE_LABELS[s as SourceId])
+                    .join(", ")}
+                </div>
+              )}
+              <FilterBar
+                sources={sourceList}
+                activeSources={activeSources}
+                toggleSource={(s) => {
+                  setActiveSources((cur) => {
+                    const next = new Set(cur);
+                    if (next.has(s)) next.delete(s);
+                    else next.add(s);
+                    return next;
+                  });
+                }}
+                themes={query.data.scorecard.themes}
+                themeFilter={themeFilter}
+                setThemeFilter={setThemeFilter}
+                query={textQ}
+                setQuery={setTextQ}
+                shown={filteredItems.length}
+                total={query.data.items.length}
+              />
+              <FeedbackSections items={filteredItems} />
+            </>
+          ) : null}
+        </div>
+        {/* hide unused */}
+        <span className="hidden">{navigate.length}</span>
+      </div>
+    </AppShell>
   );
 }

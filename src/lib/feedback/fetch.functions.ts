@@ -122,6 +122,18 @@ function buildScorecard(items: FeedbackItem[]): Scorecard {
   const topCategory = (Object.entries(catCount) as [Category, number][])
     .filter(([k]) => k !== "other")
     .sort((a, b) => b[1] - a[1])[0];
+  const themes = (Object.entries(catCount) as [Category, number][])
+    .filter(([k, v]) => k !== "other" && v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, count]) => ({ category, count }));
+  // Weighted score 0-100 (positives lift, negatives drag, severity matters)
+  let raw = 50;
+  for (const it of items) {
+    if (it.sentiment === "positive") raw += it.impact === "high" ? 6 : 3;
+    else if (it.sentiment === "negative")
+      raw -= it.severity === "critical" ? 10 : it.severity === "major" ? 6 : 3;
+  }
+  const score = Math.max(0, Math.min(100, Math.round(raw)));
   return {
     total,
     positivePct: Math.round((pos / safe) * 100),
@@ -129,6 +141,10 @@ function buildScorecard(items: FeedbackItem[]): Scorecard {
     negativePct: Math.round((neg / safe) * 100),
     topCategory: topCategory && topCategory[1] > 0 ? topCategory[0] : null,
     bySource,
+    score,
+    trend: score >= 65 ? "rising" : score <= 40 ? "falling" : "stable",
+    delta: score - 50,
+    themes,
   };
 }
 
@@ -160,12 +176,15 @@ export const fetchFeedback = createServerFn({ method: "POST" })
     );
 
     const items: FeedbackItem[] = results.flat().map((raw, idx) => {
-      const { category, sentiment } = classifyItem(raw);
+      const c = classifyItem(raw);
       return {
         ...raw,
         id: `${raw.source}-${idx}-${raw.url.slice(0, 32)}`,
-        category,
-        sentiment,
+        category: c.category,
+        sentiment: c.sentiment,
+        severity: c.severity,
+        impact: c.impact,
+        reason: c.reason,
       };
     });
 
