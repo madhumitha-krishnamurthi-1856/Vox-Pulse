@@ -12,6 +12,9 @@ export type Category =
 
 export type Sentiment = "positive" | "neutral" | "negative";
 
+export type Severity = "critical" | "major" | "minor";
+export type Impact = "high" | "low";
+
 export interface RawFeedbackItem {
   source: SourceId;
   url: string;
@@ -23,6 +26,9 @@ export interface FeedbackItem extends RawFeedbackItem {
   id: string;
   category: Category;
   sentiment: Sentiment;
+  severity: Severity | null;
+  impact: Impact | null;
+  reason: string;
 }
 
 export interface Scorecard {
@@ -32,6 +38,10 @@ export interface Scorecard {
   negativePct: number;
   topCategory: Category | null;
   bySource: Record<SourceId, number>;
+  score: number;
+  trend: "rising" | "falling" | "stable";
+  delta: number;
+  themes: { category: Category; count: number }[];
 }
 
 export interface FetchFeedbackResult {
