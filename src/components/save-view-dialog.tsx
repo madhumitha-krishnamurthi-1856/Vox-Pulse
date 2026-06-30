@@ -1,7 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { Bookmark } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,8 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/hooks/use-auth";
-import { createView } from "@/lib/feedback/views.functions";
+import { useSavedViews } from "@/hooks/use-saved-views";
 import type { SourceId, Timeframe } from "@/lib/feedback/types";
 
 interface Props {
@@ -28,38 +24,16 @@ interface Props {
 }
 
 export function SaveViewDialog({ keyword, sources, timeframe }: Props) {
-  const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(keyword);
-  const qc = useQueryClient();
-  const createViewFn = useServerFn(createView);
+  const { addView } = useSavedViews();
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      createViewFn({ data: { name: name.trim(), keyword, sources, timeframe } }),
-    onSuccess: () => {
-      toast.success("View saved");
-      qc.invalidateQueries({ queryKey: ["saved_views"] });
-      setOpen(false);
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to save"),
-  });
-
-  if (loading) return null;
-
-  if (!user) {
-    return (
-      <Button asChild variant="outline" size="sm">
-        <Link
-          to="/auth"
-          search={{ next: `/search?q=${encodeURIComponent(keyword)}&sources=${sources.join(",")}&timeframe=${timeframe}` }}
-        >
-          <Bookmark className="mr-1.5 h-4 w-4" />
-          Sign in to save
-        </Link>
-      </Button>
-    );
-  }
+  const onSave = () => {
+    if (!name.trim()) return;
+    addView({ name: name.trim(), keyword, sources, timeframe });
+    toast.success("View saved");
+    setOpen(false);
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -87,10 +61,10 @@ export function SaveViewDialog({ keyword, sources, timeframe }: Props) {
         </div>
         <DialogFooter>
           <Button
-            onClick={() => mutation.mutate()}
-            disabled={!name.trim() || mutation.isPending}
+            onClick={onSave}
+            disabled={!name.trim()}
           >
-            {mutation.isPending ? "Saving…" : "Save view"}
+            Save view
           </Button>
         </DialogFooter>
       </DialogContent>
