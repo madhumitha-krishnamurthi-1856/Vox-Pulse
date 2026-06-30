@@ -39,10 +39,12 @@ export const Route = createFileRoute("/search")({
 
 function SearchPage() {
   const { q, sources, timeframe } = Route.useSearch();
-  const sourceList = sources
+  const sourceList: SourceId[] = sources
     .split(",")
-    .map((s) => s.trim())
-    .filter((s): s is SourceId => (ALL_SOURCES as string[]).includes(s));
+    .map((s: string) => s.trim())
+    .filter((s: string): s is SourceId =>
+      (ALL_SOURCES as string[]).includes(s),
+    );
 
   const fetchFn = useServerFn(fetchFeedback);
 
@@ -116,7 +118,7 @@ function SearchPage() {
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
                 Some sources returned no results:{" "}
                 {Object.entries(query.data.errors)
-                  .map(([s]) => SOURCE_LABELS[s as SourceId])
+                  .map(([s]: [string, unknown]) => SOURCE_LABELS[s as SourceId])
                   .join(", ")}
               </div>
             )}
