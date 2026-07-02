@@ -1,4 +1,4 @@
-export type SourceId = "reddit" | "twitter" | "g2" | "capterra" | "trustpilot";
+export type SourceId = "reddit" | "g2" | "capterra" | "trustpilot";
 
 export type Timeframe = "day" | "week" | "month" | "year" | "all";
 
@@ -52,7 +52,6 @@ export interface FetchFeedbackResult {
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
   reddit: "Reddit",
-  twitter: "Twitter / X",
   g2: "G2",
   capterra: "Capterra",
   trustpilot: "Trustpilot",
@@ -60,7 +59,6 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
 
 export const SOURCE_DOMAINS: Record<SourceId, string> = {
   reddit: "reddit.com",
-  twitter: "twitter.com",
   g2: "g2.com",
   capterra: "capterra.com",
   trustpilot: "trustpilot.com",
@@ -68,7 +66,6 @@ export const SOURCE_DOMAINS: Record<SourceId, string> = {
 
 export const ALL_SOURCES: SourceId[] = [
   "reddit",
-  "twitter",
   "g2",
   "capterra",
   "trustpilot",

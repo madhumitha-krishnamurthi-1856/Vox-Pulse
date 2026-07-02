@@ -16,7 +16,7 @@ import {
 
 const inputSchema = z.object({
   keyword: z.string().trim().min(2).max(120),
-  sources: z.array(z.enum(["reddit", "twitter", "g2", "capterra", "trustpilot"])).min(1),
+  sources: z.array(z.enum(["reddit", "g2", "capterra", "trustpilot"])).min(1),
   timeframe: z.enum(["day", "week", "month", "year", "all"]).default("month"),
   perSourceLimit: z.number().int().min(1).max(15).default(8),
 });

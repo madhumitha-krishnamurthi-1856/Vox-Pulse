@@ -7,7 +7,7 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Vox Pulse — Listen to what customers say" },
-      { name: "description", content: "Aggregate customer feedback for any brand from Reddit, Twitter/X, G2, Capterra and Trustpilot in seconds." },
+      { name: "description", content: "Aggregate customer feedback for any brand from Reddit, G2, Capterra and Trustpilot in seconds." },
       { property: "og:title", content: "Vox Pulse" },
       { property: "og:description", content: "Customer feedback intelligence across the public web." },
     ],
@@ -28,7 +28,7 @@ function Index() {
             <span className="text-primary">about your product.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-muted-foreground">
-            Aggregate feedback from Reddit, Twitter/X, G2, Capterra and Trustpilot.
+            Aggregate feedback from Reddit, G2, Capterra and Trustpilot.
             Save the views you care about, refresh whenever, triage by severity.
           </p>
         </div>

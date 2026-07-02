@@ -9,6 +9,7 @@ import { AppShell } from "@/components/app-shell";
 import { DashboardStats, TopThemes } from "@/components/dashboard-stats";
 import { FeedbackSections } from "@/components/feedback-sections";
 import { FilterBar } from "@/components/filter-bar";
+import { PlatformRatings } from "@/components/platform-ratings";
 import { SaveViewDialog } from "@/components/save-view-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -198,6 +199,7 @@ function SearchPage() {
             <>
               <DashboardStats scorecard={query.data.scorecard} items={query.data.items} />
               <TopThemes scorecard={query.data.scorecard} />
+              <PlatformRatings keyword={q} />
               {Object.keys(query.data.errors).length > 0 && (
                 <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-foreground/70">
                   Some sources returned no results:{" "}
