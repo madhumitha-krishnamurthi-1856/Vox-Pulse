@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "Vox Pulse" },
+      { name: "description", content: "Project Echo is a web application that analyzes and summarizes text content from URLs." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "Vox Pulse" },
+      { property: "og:description", content: "Project Echo is a web application that analyzes and summarizes text content from URLs." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Vox Pulse" },
+      { name: "twitter:description", content: "Project Echo is a web application that analyzes and summarizes text content from URLs." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3843bbac-7c65-427b-a1fa-d6115a8a6d01/id-preview-8bf7bf44--0445d4db-3362-4123-9bec-8dd3100f4732.lovable.app-1782810216179.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3843bbac-7c65-427b-a1fa-d6115a8a6d01/id-preview-8bf7bf44--0445d4db-3362-4123-9bec-8dd3100f4732.lovable.app-1782810216179.png" },
     ],
     links: [
       {
