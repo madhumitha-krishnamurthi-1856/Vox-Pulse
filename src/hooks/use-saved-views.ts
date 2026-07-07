@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type { SourceId, Timeframe } from "@/lib/feedback/types";
+import { ALL_SOURCES, type SourceId, type Timeframe } from "@/lib/feedback/types";
 
 const STORAGE_KEY = "vox-pulse:saved-views";
+const SEEDED_KEY = "vox-pulse:seeded";
 
 export interface SavedView {
   id: string;
@@ -14,6 +15,12 @@ export interface SavedView {
   updatedAt: string;
   lastScore?: number;
 }
+
+const DEFAULT_VIEWS: Omit<SavedView, "id" | "createdAt" | "updatedAt">[] = [
+  { name: "Zoho Mail", keyword: "Zoho Mail", sources: ALL_SOURCES, timeframe: "year" },
+  { name: "Zoho Calendar", keyword: "Zoho Calendar", sources: ALL_SOURCES, timeframe: "year" },
+  { name: "ZeptoMail", keyword: "ZeptoMail", sources: ALL_SOURCES, timeframe: "year" },
+];
 
 function read(): SavedView[] {
   if (typeof window === "undefined") return [];
@@ -38,6 +45,17 @@ export function useSavedViews() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (!window.localStorage.getItem(SEEDED_KEY)) {
+      const now = new Date().toISOString();
+      const seeded: SavedView[] = DEFAULT_VIEWS.map((v, i) => ({
+        ...v,
+        id: `default-${i}`,
+        createdAt: now,
+        updatedAt: now,
+      }));
+      write(seeded);
+      window.localStorage.setItem(SEEDED_KEY, "1");
+    }
     setViews(read());
     setLoaded(true);
     const onUpdate = () => setViews(read());
