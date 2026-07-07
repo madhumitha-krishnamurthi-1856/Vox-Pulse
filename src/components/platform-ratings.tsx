@@ -22,7 +22,6 @@ function StarRating({ score, color }: { score: number; color: string }) {
 const PLATFORMS = [
   { key: "g2" as const, label: "G2", color: "#FF492C" },
   { key: "capterra" as const, label: "Capterra", color: "#3E86F5" },
-  { key: "trustpilot" as const, label: "Trustpilot", color: "#00B67A" },
 ];
 
 export function PlatformRatings({ keyword }: { keyword: string }) {
@@ -42,7 +41,7 @@ export function PlatformRatings({ keyword }: { keyword: string }) {
           const score = ratings?.[p.key] ?? null;
           const reviewCount = ratings?.[`${p.key}ReviewCount` as keyof typeof ratings] as number | null ?? null;
           const url = ratings?.[`${p.key}Url` as keyof typeof ratings] as string
-            ?? `https://www.${p.key === "g2" ? "g2.com" : p.key === "capterra" ? "capterra.com" : "trustpilot.com"}/search?q=${encodeURIComponent(keyword)}`;
+            ?? `https://www.${p.key === "g2" ? "g2.com/search?q=" : "capterra.com/search/?query="}${encodeURIComponent(keyword)}`;
 
           return (
             <a
