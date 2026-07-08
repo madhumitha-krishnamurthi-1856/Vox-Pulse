@@ -192,5 +192,6 @@ export const fetchFeedback = createServerFn({ method: "POST" })
       items,
       scorecard: buildScorecard(items),
       errors,
+      creditsUsed: data.sources.length * data.perSourceLimit,
     };
   });

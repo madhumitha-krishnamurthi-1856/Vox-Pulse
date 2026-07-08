@@ -48,6 +48,7 @@ export interface FetchFeedbackResult {
   items: FeedbackItem[];
   scorecard: Scorecard;
   errors: Partial<Record<SourceId, string>>;
+  creditsUsed: number;
 }
 
 export const SOURCE_LABELS: Record<SourceId, string> = {

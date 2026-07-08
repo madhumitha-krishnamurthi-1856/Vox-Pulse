@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Edit3, Link2, RefreshCw } from "lucide-react";
+import { Edit3, Link2, RefreshCw, Zap } from "lucide-react";
 import { z } from "zod";
 
 import { AppShell } from "@/components/app-shell";
 import { DashboardStats, TopThemes } from "@/components/dashboard-stats";
+import { ExecutiveSummary } from "@/components/executive-summary";
 import { FeedbackSections } from "@/components/feedback-sections";
 import { FilterBar } from "@/components/filter-bar";
 import { PlatformRatings } from "@/components/platform-ratings";
@@ -19,9 +20,28 @@ import {
   ALL_SOURCES,
   SOURCE_LABELS,
   type Category,
+  type FetchFeedbackResult,
   type SourceId,
   type Timeframe,
 } from "@/lib/feedback/types";
+
+const CACHE_TTL = 6 * 60 * 60 * 1000;
+
+function getCached(key: string): FetchFeedbackResult | null {
+  try {
+    const raw = localStorage.getItem(`vox-pulse:cache:${key}`);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw) as { data: FetchFeedbackResult; ts: number };
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return data;
+  } catch { return null; }
+}
+
+function setCached(key: string, data: FetchFeedbackResult) {
+  try {
+    localStorage.setItem(`vox-pulse:cache:${key}`, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
+}
 
 const searchSchema = z.object({
   q: z.string().optional().default(""),
@@ -57,14 +77,21 @@ function SearchPage() {
 
   const fetchFn = useServerFn(fetchFeedback);
   const enabled = q.trim().length >= 2 && sourceList.length > 0;
+  const cacheKey = `${q.trim()}|${sourceList.join(",")}|${timeframe}`;
   const query = useQuery({
     queryKey: ["feedback", q, sourceList.join(","), timeframe],
-    queryFn: () =>
-      fetchFn({
+    queryFn: async () => {
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
+      const result = await fetchFn({
         data: { keyword: q.trim(), sources: sourceList, timeframe: timeframe as Timeframe },
-      }),
+      });
+      setCached(cacheKey, result);
+      return result;
+    },
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: CACHE_TTL,
+    gcTime: CACHE_TTL,
   });
 
   const savedView = useMemo(() => views.find((v) => v.id === view), [views, view]);
@@ -197,6 +224,7 @@ function SearchPage() {
             </div>
           ) : query.data ? (
             <>
+              <ExecutiveSummary scorecard={query.data.scorecard} items={query.data.items} />
               <DashboardStats scorecard={query.data.scorecard} items={query.data.items} />
               <TopThemes scorecard={query.data.scorecard} />
               <PlatformRatings keyword={q} />
@@ -234,6 +262,13 @@ function SearchPage() {
         {/* hide unused */}
         <span className="hidden">{navigate.length}</span>
       </div>
+      {query.data && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-[11px] shadow-sm backdrop-blur">
+          <Zap className="h-3 w-3 text-warn" />
+          <span className="font-medium text-foreground">{query.data.creditsUsed}</span>
+          <span className="text-muted-foreground">API credits used</span>
+        </div>
+      )}
     </AppShell>
   );
 }
