@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { AppShell } from "@/components/app-shell";
 import { DashboardStats, TopThemes } from "@/components/dashboard-stats";
-import { ExecutiveSummary } from "@/components/executive-summary";
 import { FeedbackSections } from "@/components/feedback-sections";
 import { FilterBar } from "@/components/filter-bar";
 import { PlatformRatings } from "@/components/platform-ratings";
@@ -224,7 +223,6 @@ function SearchPage() {
             </div>
           ) : query.data ? (
             <>
-              <ExecutiveSummary scorecard={query.data.scorecard} items={query.data.items} />
               <DashboardStats scorecard={query.data.scorecard} items={query.data.items} />
               <TopThemes scorecard={query.data.scorecard} />
               <PlatformRatings keyword={q} />
@@ -262,13 +260,15 @@ function SearchPage() {
         {/* hide unused */}
         <span className="hidden">{navigate.length}</span>
       </div>
-      {query.data && (
-        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-[11px] shadow-sm backdrop-blur">
-          <Zap className="h-3 w-3 text-warn" />
-          <span className="font-medium text-foreground">{query.data.creditsUsed}</span>
-          <span className="text-muted-foreground">API credits used</span>
-        </div>
-      )}
     </AppShell>
+    {query.data && (
+      <div
+        style={{ position: "fixed", bottom: "1.25rem", right: "1.25rem", zIndex: 9999 }}
+        className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-medium shadow-md"
+      >
+        <Zap className="h-3 w-3 text-amber-500" />
+        <span className="text-amber-800">{query.data.creditsUsed} API credits used</span>
+      </div>
+    )}
   );
 }
