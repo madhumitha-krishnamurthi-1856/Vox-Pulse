@@ -19,27 +19,33 @@ export type Database = {
           created_at: string
           id: string
           keyword: string
+          last_score: number | null
           name: string
           sources: string[]
           timeframe: string
+          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           keyword: string
+          last_score?: number | null
           name: string
           sources?: string[]
           timeframe?: string
+          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           keyword?: string
+          last_score?: number | null
           name?: string
           sources?: string[]
           timeframe?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { supabase } from "@/integrations/supabase/client";
 import { ALL_SOURCES, type SourceId, type Timeframe } from "@/lib/feedback/types";
-
-const STORAGE_KEY = "vox-pulse:saved-views";
-const SEEDED_KEY = "vox-pulse:seeded";
 
 export interface SavedView {
   id: string;
@@ -22,80 +20,149 @@ const DEFAULT_VIEWS: Omit<SavedView, "id" | "createdAt" | "updatedAt">[] = [
   { name: "ZeptoMail", keyword: "ZeptoMail", sources: ALL_SOURCES, timeframe: "year" },
 ];
 
-function read(): SavedView[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SavedView[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+async function ensureSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    await supabase.auth.signInAnonymously();
   }
 }
 
-function write(views: SavedView[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
-  window.dispatchEvent(new CustomEvent("vox-pulse:views-updated"));
+function rowToView(row: {
+  id: string;
+  name: string;
+  keyword: string;
+  sources: string[];
+  timeframe: string;
+  created_at: string;
+  updated_at: string;
+  last_score: number | null;
+}): SavedView {
+  return {
+    id: row.id,
+    name: row.name,
+    keyword: row.keyword,
+    sources: row.sources as SourceId[],
+    timeframe: row.timeframe as Timeframe,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastScore: row.last_score ?? undefined,
+  };
 }
 
 export function useSavedViews() {
   const [views, setViews] = useState<SavedView[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    if (!window.localStorage.getItem(SEEDED_KEY)) {
-      const now = new Date().toISOString();
-      const seeded: SavedView[] = DEFAULT_VIEWS.map((v, i) => ({
-        ...v,
-        id: `default-${i}`,
-        createdAt: now,
-        updatedAt: now,
-      }));
-      write(seeded);
-      window.localStorage.setItem(SEEDED_KEY, "1");
+  const loadViews = useCallback(async () => {
+    await ensureSession();
+    const { data, error } = await supabase
+      .from("saved_views")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("[useSavedViews] load error", error);
+      setLoaded(true);
+      return;
     }
-    setViews(read());
+
+    const rows = data ?? [];
+
+    if (rows.length === 0) {
+      // Seed default views for this user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("saved_views").insert(
+          DEFAULT_VIEWS.map((v) => ({
+            name: v.name,
+            keyword: v.keyword,
+            sources: v.sources as string[],
+            timeframe: v.timeframe,
+            user_id: user.id,
+          }))
+        );
+        const { data: seeded } = await supabase
+          .from("saved_views")
+          .select("*")
+          .order("created_at", { ascending: true });
+        setViews((seeded ?? []).map(rowToView));
+      }
+    } else {
+      setViews(rows.map(rowToView));
+    }
+
     setLoaded(true);
-    const onUpdate = () => setViews(read());
-    window.addEventListener("vox-pulse:views-updated", onUpdate);
-    window.addEventListener("storage", onUpdate);
-    return () => {
-      window.removeEventListener("vox-pulse:views-updated", onUpdate);
-      window.removeEventListener("storage", onUpdate);
-    };
   }, []);
 
+  useEffect(() => {
+    loadViews();
+  }, [loadViews]);
+
   const addView = useCallback(
-    (input: Omit<SavedView, "id" | "createdAt" | "updatedAt"> & { updatedAt?: string }) => {
-      const now = new Date().toISOString();
-      const view: SavedView = {
-        ...input,
-        updatedAt: input.updatedAt ?? now,
-        id:
-          (typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `v_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
-        createdAt: now,
-      };
-      const next = [view, ...read()];
-      write(next);
+    async (input: Omit<SavedView, "id" | "createdAt" | "updatedAt"> & { updatedAt?: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("saved_views")
+        .insert({
+          name: input.name,
+          keyword: input.keyword,
+          sources: input.sources as string[],
+          timeframe: input.timeframe,
+          last_score: input.lastScore ?? null,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[useSavedViews] addView error", error);
+        return;
+      }
+
+      const view = rowToView(data);
+      setViews((cur) => [view, ...cur]);
       return view;
     },
     [],
   );
 
-  const removeView = useCallback((id: string) => {
-    write(read().filter((v) => v.id !== id));
+  const removeView = useCallback(async (id: string) => {
+    const { error } = await supabase.from("saved_views").delete().eq("id", id);
+    if (error) {
+      console.error("[useSavedViews] removeView error", error);
+      return;
+    }
+    setViews((cur) => cur.filter((v) => v.id !== id));
   }, []);
 
   const updateView = useCallback(
-    (id: string, patch: Partial<Omit<SavedView, "id" | "createdAt">>) => {
-      const next = read().map((v) =>
-        v.id === id ? { ...v, ...patch, updatedAt: new Date().toISOString() } : v,
+    async (id: string, patch: Partial<Omit<SavedView, "id" | "createdAt">>) => {
+      const { error } = await supabase
+        .from("saved_views")
+        .update({
+          ...(patch.name !== undefined && { name: patch.name }),
+          ...(patch.keyword !== undefined && { keyword: patch.keyword }),
+          ...(patch.sources !== undefined && { sources: patch.sources as string[] }),
+          ...(patch.timeframe !== undefined && { timeframe: patch.timeframe }),
+          ...(patch.lastScore !== undefined && { last_score: patch.lastScore }),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (error) {
+        console.error("[useSavedViews] updateView error", error);
+        return;
+      }
+
+      setViews((cur) =>
+        cur.map((v) =>
+          v.id === id
+            ? { ...v, ...patch, updatedAt: new Date().toISOString() }
+            : v,
+        ),
       );
-      write(next);
     },
     [],
   );
