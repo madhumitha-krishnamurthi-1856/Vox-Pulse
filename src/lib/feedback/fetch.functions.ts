@@ -91,6 +91,12 @@ async function searchSource(
     }));
 }
 
+const SOURCE_WEIGHT: Record<SourceId, number> = {
+  g2: 2.0,      // verified reviews, high intent signal
+  capterra: 2.0, // same
+  reddit: 0.8,   // conversational, lower signal-to-noise
+};
+
 function buildScorecard(items: FeedbackItem[]): Scorecard {
   const total = items.length;
   const bySource = ALL_SOURCES.reduce(
@@ -126,14 +132,17 @@ function buildScorecard(items: FeedbackItem[]): Scorecard {
     .filter(([k, v]) => k !== "other" && v > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([category, count]) => ({ category, count }));
-  // Weighted score 0-100 (positives lift, negatives drag, severity matters)
+  // Weighted score 0-100: source trust × sentiment severity, normalised for sample size
   let raw = 50;
   for (const it of items) {
-    if (it.sentiment === "positive") raw += it.impact === "high" ? 6 : 3;
+    const w = SOURCE_WEIGHT[it.source] ?? 1.0;
+    if (it.sentiment === "positive") raw += (it.impact === "high" ? 6 : 3) * w;
     else if (it.sentiment === "negative")
-      raw -= it.severity === "critical" ? 10 : it.severity === "major" ? 6 : 3;
+      raw -= (it.severity === "critical" ? 10 : it.severity === "major" ? 6 : 3) * w;
   }
-  const score = Math.max(0, Math.min(100, Math.round(raw)));
+  // Blend toward 50 when sample is small — prevents extreme scores from 1-2 items
+  const confidence = Math.min(1, total / 10);
+  const score = Math.max(0, Math.min(100, Math.round(50 + (raw - 50) * confidence)));
   return {
     total,
     positivePct: Math.round((pos / safe) * 100),
