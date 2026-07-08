@@ -131,6 +131,7 @@ function SearchPage() {
   };
 
   return (
+    <>
     <AppShell>
       <div className="mx-auto w-full max-w-[1400px] px-6 py-8">
         {/* Header row */}
@@ -270,5 +271,6 @@ function SearchPage() {
         <span className="text-amber-800">{query.data.creditsUsed} API credits used</span>
       </div>
     )}
+    </>
   );
 }
