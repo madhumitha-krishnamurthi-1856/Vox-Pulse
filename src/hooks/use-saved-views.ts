@@ -34,8 +34,6 @@ function rowToView(row: {
   sources: string[];
   timeframe: string;
   created_at: string;
-  updated_at: string;
-  last_score: number | null;
 }): SavedView {
   return {
     id: row.id,
@@ -44,8 +42,7 @@ function rowToView(row: {
     sources: row.sources as SourceId[],
     timeframe: row.timeframe as Timeframe,
     createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    lastScore: row.last_score ?? undefined,
+    updatedAt: row.created_at,
   };
 }
 
@@ -110,7 +107,6 @@ export function useSavedViews() {
           keyword: input.keyword,
           sources: input.sources as string[],
           timeframe: input.timeframe,
-          last_score: input.lastScore ?? null,
           user_id: user.id,
         })
         .select()
@@ -146,8 +142,6 @@ export function useSavedViews() {
           ...(patch.keyword !== undefined && { keyword: patch.keyword }),
           ...(patch.sources !== undefined && { sources: patch.sources as string[] }),
           ...(patch.timeframe !== undefined && { timeframe: patch.timeframe }),
-          ...(patch.lastScore !== undefined && { last_score: patch.lastScore }),
-          updated_at: new Date().toISOString(),
         })
         .eq("id", id);
 
