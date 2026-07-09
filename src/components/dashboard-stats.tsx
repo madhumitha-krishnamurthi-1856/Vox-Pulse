@@ -11,10 +11,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Info, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   CATEGORY_LABELS,
   SOURCE_LABELS,
@@ -65,10 +70,12 @@ function mix(a: string, b: string, pct: number) {
 
 function StatCard({
   label,
+  labelRight,
   children,
   tone = "default",
 }: {
   label: string;
+  labelRight?: React.ReactNode;
   children: React.ReactNode;
   tone?: "default" | "score";
 }) {
@@ -78,8 +85,11 @@ function StatCard({
         tone === "score" ? "bg-score-bg" : "bg-card"
       }`}
     >
-      <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        {label}
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {label}
+        </div>
+        {labelRight}
       </div>
       <div className="mt-3">{children}</div>
     </Card>
@@ -131,7 +141,39 @@ export function DashboardStats({
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Sentiment Score" tone="score">
+      <StatCard
+        label="Sentiment Score"
+        tone="score"
+        labelRight={
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors" aria-label="How is this score calculated?">
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="start" className="w-72 text-xs space-y-2.5 p-4">
+              <p className="font-semibold text-sm">How the score is calculated</p>
+              <p className="text-muted-foreground leading-relaxed">
+                Each feedback item is weighted by its <strong>source trust</strong> (G2 & Capterra count 2×, Reddit 0.8×) and its <strong>sentiment strength</strong>:
+              </p>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>🟢 <strong>Positive — high impact</strong> (e.g. "game-changer", "highly recommend"): 1.5×</li>
+                <li>🟡 <strong>Positive — low impact</strong>: 1.0×</li>
+                <li>⚪ <strong>Neutral</strong>: 0.5× (dampens extremes)</li>
+                <li>🟠 <strong>Negative — minor</strong>: 1.0×</li>
+                <li>🔴 <strong>Negative — major</strong> (bugs, complaints): 1.5×</li>
+                <li>🚨 <strong>Critical</strong> (outage, data loss): 2.0×</li>
+              </ul>
+              <p className="text-muted-foreground leading-relaxed">
+                The final score is <code className="bg-muted px-1 rounded">50 + (positive − negative) ÷ total_weight × 50</code>, always between 0 and 100.
+              </p>
+              <p className="text-muted-foreground">
+                A score of <strong>50</strong> is neutral. Above 65 = rising, below 40 = falling.
+              </p>
+            </PopoverContent>
+          </Popover>
+        }
+      >
         <div className="flex items-baseline gap-2">
           <div className="font-serif text-5xl font-semibold text-positive">
             {scorecard.score}

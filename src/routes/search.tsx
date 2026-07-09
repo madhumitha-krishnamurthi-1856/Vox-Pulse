@@ -43,6 +43,23 @@ function setCached(key: string, data: FetchFeedbackResult) {
   } catch {}
 }
 
+function getCacheTimestamp(key: string): number | null {
+  try {
+    const raw = localStorage.getItem(`vox-pulse:cache:v2:${key}`);
+    if (!raw) return null;
+    const { ts } = JSON.parse(raw) as { ts: number };
+    return typeof ts === "number" ? ts : null;
+  } catch { return null; }
+}
+
+function formatTimeLeft(ts: number): string {
+  const left = CACHE_TTL - (Date.now() - ts);
+  if (left <= 0) return "expiring";
+  const h = Math.floor(left / 3_600_000);
+  const m = Math.floor((left % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 const searchSchema = z.object({
   q: z.string().optional().default(""),
   sources: z.string().optional().default(ALL_SOURCES.join(",")),
@@ -104,6 +121,15 @@ function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedView?.id, query.data?.scorecard.score]);
 
+  // Cache timestamp — re-evaluated every minute so the countdown stays live
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const cacheTs = getCacheTimestamp(cacheKey);
+  const isCached = cacheTs !== null && Date.now() - cacheTs < CACHE_TTL;
+
   // Local filter state
   const [activeSources, setActiveSources] = useState<Set<SourceId>>(new Set(sourceList));
   useEffect(() => setActiveSources(new Set(sourceList)), [sources]);
@@ -154,6 +180,18 @@ function SearchPage() {
               <span className="rounded-full bg-accent px-2 py-0.5 text-accent-foreground">
                 {timeframeLabel[timeframe as Timeframe]}
               </span>
+              {isCached && cacheTs && (
+                <>
+                  <span>·</span>
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-amber-700"
+                    title="Results are cached. Refresh is blocked until the cache expires to save API credits."
+                  >
+                    <RefreshCw className="h-2.5 w-2.5" />
+                    Cached · refreshes in {formatTimeLeft(cacheTs)}
+                  </span>
+                </>
+              )}
               {savedView && (
                 <>
                   <span>·</span>
@@ -166,8 +204,14 @@ function SearchPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => query.refetch()}
-              disabled={query.isFetching || !enabled}
+              onClick={() => {
+                if (isCached && cacheTs) {
+                  localStorage.removeItem(`vox-pulse:cache:v2:${cacheKey}`);
+                }
+                query.refetch();
+              }}
+              disabled={query.isFetching || !enabled || isCached}
+              title={isCached && cacheTs ? `Data is cached for 6h to save API credits. Refreshes in ${formatTimeLeft(cacheTs)}.` : undefined}
               className="gap-1.5"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${query.isFetching ? "animate-spin" : ""}`} />
