@@ -268,7 +268,12 @@ function SearchPage() {
         className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-medium shadow-md"
       >
         <Zap className="h-3 w-3 text-amber-500" />
-        <span className="text-amber-800">{query.data.creditsUsed} API credits used</span>
+        <span className="text-amber-800">
+          {query.data.creditsUsed} used
+          {query.data.creditsRemaining != null && (
+            <> · {query.data.creditsRemaining} remaining</>
+          )}
+        </span>
       </div>
     )}
     </>

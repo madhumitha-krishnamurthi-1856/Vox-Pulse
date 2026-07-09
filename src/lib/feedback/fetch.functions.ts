@@ -91,10 +91,22 @@ async function searchSource(
     }));
 }
 
+async function fetchCreditsRemaining(apiKey: string): Promise<number | null> {
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v1/credits", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { credits?: number };
+    return json.credits ?? null;
+  } catch { return null; }
+}
+
 const SOURCE_WEIGHT: Record<SourceId, number> = {
-  g2: 2.0,      // verified reviews, high intent signal
-  capterra: 2.0, // same
-  reddit: 0.8,   // conversational, lower signal-to-noise
+  g2: 2.0,
+  capterra: 2.0,
+  reddit: 0.8,
+  trustpilot: 1.5,
 };
 
 function buildScorecard(items: FeedbackItem[]): Scorecard {
@@ -132,17 +144,16 @@ function buildScorecard(items: FeedbackItem[]): Scorecard {
     .filter(([k, v]) => k !== "other" && v > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([category, count]) => ({ category, count }));
-  // Weighted score 0-100: source trust × sentiment severity, normalised for sample size
-  let raw = 50;
+  // Ratio-based score: net/span is always [-1,+1] so score is always [0,100]
+  let weightedPos = 0, weightedNeg = 0, weightedNeu = 0;
   for (const it of items) {
     const w = SOURCE_WEIGHT[it.source] ?? 1.0;
-    if (it.sentiment === "positive") raw += (it.impact === "high" ? 6 : 3) * w;
-    else if (it.sentiment === "negative")
-      raw -= (it.severity === "critical" ? 10 : it.severity === "major" ? 6 : 3) * w;
+    if (it.sentiment === "positive") weightedPos += w * (it.impact === "high" ? 1.5 : 1.0);
+    else if (it.sentiment === "negative") weightedNeg += w * (it.severity === "critical" ? 2.0 : it.severity === "major" ? 1.5 : 1.0);
+    else weightedNeu += w * 0.5;
   }
-  // Blend toward 50 when sample is small — prevents extreme scores from 1-2 items
-  const confidence = Math.min(1, total / 10);
-  const score = Math.max(0, Math.min(100, Math.round(50 + (raw - 50) * confidence)));
+  const span = weightedPos + weightedNeg + weightedNeu || 1;
+  const score = Math.max(0, Math.min(100, Math.round(50 + ((weightedPos - weightedNeg) / span) * 50)));
   return {
     total,
     positivePct: Math.round((pos / safe) * 100),
@@ -166,23 +177,26 @@ export const fetchFeedback = createServerFn({ method: "POST" })
     }
 
     const errors: Partial<Record<SourceId, string>> = {};
-    const results = await Promise.all(
-      data.sources.map(async (source) => {
-        try {
-          return await searchSource(
-            source,
-            data.keyword,
-            data.timeframe,
-            data.perSourceLimit,
-            apiKey,
-          );
-        } catch (err) {
-          console.error(`[fetchFeedback] ${source} failed`, err);
-          errors[source] = err instanceof Error ? err.message : String(err);
-          return [] as RawFeedbackItem[];
-        }
-      }),
-    );
+    const [results, creditsRemaining] = await Promise.all([
+      Promise.all(
+        data.sources.map(async (source) => {
+          try {
+            return await searchSource(
+              source,
+              data.keyword,
+              data.timeframe,
+              data.perSourceLimit,
+              apiKey,
+            );
+          } catch (err) {
+            console.error(`[fetchFeedback] ${source} failed`, err);
+            errors[source] = err instanceof Error ? err.message : String(err);
+            return [] as RawFeedbackItem[];
+          }
+        }),
+      ),
+      fetchCreditsRemaining(apiKey),
+    ]);
 
     const items: FeedbackItem[] = results.flat().map((raw, idx) => {
       const c = classifyItem(raw);
@@ -202,5 +216,6 @@ export const fetchFeedback = createServerFn({ method: "POST" })
       scorecard: buildScorecard(items),
       errors,
       creditsUsed: data.sources.length * data.perSourceLimit,
+      creditsRemaining,
     };
   });
