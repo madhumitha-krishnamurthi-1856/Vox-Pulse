@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Edit3, Link2, RefreshCw, Zap } from "lucide-react";
+import { Link2, RefreshCw, Zap } from "lucide-react";
 import { z } from "zod";
 
 import { AppShell } from "@/components/app-shell";
 import { DashboardStats, TopThemes } from "@/components/dashboard-stats";
+import { EditViewDialog } from "@/components/edit-view-dialog";
 import { FeedbackSections } from "@/components/feedback-sections";
 import { FilterBar } from "@/components/filter-bar";
 import { PlatformRatings } from "@/components/platform-ratings";
@@ -28,7 +29,7 @@ const CACHE_TTL = 6 * 60 * 60 * 1000;
 
 function getCached(key: string): FetchFeedbackResult | null {
   try {
-    const raw = localStorage.getItem(`vox-pulse:cache:${key}`);
+    const raw = localStorage.getItem(`vox-pulse:cache:v2:${key}`);
     if (!raw) return null;
     const { data, ts } = JSON.parse(raw) as { data: FetchFeedbackResult; ts: number };
     if (Date.now() - ts > CACHE_TTL) return null;
@@ -38,7 +39,7 @@ function getCached(key: string): FetchFeedbackResult | null {
 
 function setCached(key: string, data: FetchFeedbackResult) {
   try {
-    localStorage.setItem(`vox-pulse:cache:${key}`, JSON.stringify({ data, ts: Date.now() }));
+    localStorage.setItem(`vox-pulse:cache:v2:${key}`, JSON.stringify({ data, ts: Date.now() }));
   } catch {}
 }
 
@@ -180,18 +181,25 @@ function SearchPage() {
               />
             )}
             {savedView && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => {
-                  const next = window.prompt("Rename view", savedView.name);
-                  if (next && next.trim()) updateView(savedView.id, { name: next.trim() });
+              <EditViewDialog
+                view={savedView}
+                onUpdated={(patch) => {
+                  // Clear cached result for both old and new param combos so re-fetch runs fresh
+                  const oldKey = `${q.trim()}|${sourceList.join(",")}|${timeframe}`;
+                  const newKey = `${patch.keyword}|${patch.sources.join(",")}|${patch.timeframe}`;
+                  localStorage.removeItem(`vox-pulse:cache:v2:${oldKey}`);
+                  localStorage.removeItem(`vox-pulse:cache:v2:${newKey}`);
+                  navigate({
+                    to: "/search",
+                    search: {
+                      q: patch.keyword,
+                      sources: patch.sources.join(","),
+                      timeframe: patch.timeframe,
+                      view: savedView.id,
+                    },
+                  });
                 }}
-              >
-                <Edit3 className="h-3.5 w-3.5" />
-                Edit View
-              </Button>
+              />
             )}
             <Button variant="ghost" size="sm" asChild>
               <Link to="/">New search</Link>
