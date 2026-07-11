@@ -1,60 +1,50 @@
-# Vox-Pulse Clone — Firecrawl Edition
+# Replace Twitter/X with Bluesky + Hacker News
 
-A customer feedback aggregator that searches public chatter (Reddit, Twitter/X, G2, Capterra, Trustpilot) for a keyword/brand, classifies the snippets, and surfaces a scorecard plus categorized sections. Saved views let users re-run the same query later.
+Firecrawl can't return usable Twitter/X snippets (login wall). Instead of a broken X source, add two free public APIs that return real product-discussion signal.
 
-## Stack
+## New sources
 
-- TanStack Start + React 19 + Tailwind v4 + shadcn/ui
-- Lovable Cloud (auth + Postgres) for user accounts and saved views
-- **Firecrawl connector** for source data (web search + structured extraction)
-- Lovable AI Gateway (Gemini 2.5 Flash) for snippet classification + sentiment
+**Bluesky** — public search, no auth
+- `GET https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=<kw>&limit=15&sort=latest`
+- Returns full post text, author, timestamp, like/repost counts
+- Post URL built from `at://did/…/post/<rkey>` → `https://bsky.app/profile/<handle>/post/<rkey>`
 
-## Pages / Routes
+**Hacker News (Algolia)** — public search, no auth, no limits
+- `GET https://hn.algolia.com/api/v1/search?query=<kw>&tags=(story,comment)&hitsPerPage=15`
+- Optional time filter via `numericFilters=created_at_i>UNIX_TS`
+- Returns story title / comment text, author, points, URL
 
-- `/` — landing + hero + search bar
-- `/search?q=...&sources=...&timeframe=...` — runs the fetch pipeline, shows scorecard + sections
-- `/_authenticated/views` — list of saved views
-- `/_authenticated/view/$viewId` — re-runs a saved view
-- `/auth` — Lovable Cloud sign in / up
+Both bypass Firecrawl entirely — direct fetch inside the server function, no API key.
 
-## Backend
+## Changes
 
-**Lovable Cloud migration** — `saved_views` table:
-`id uuid pk, user_id uuid, name text, keyword text, sources text[], timeframe text, created_at timestamptz`
-RLS: owner-only CRUD. Standard GRANTs to `authenticated` + `service_role`.
+**`src/lib/feedback/types.ts`**
+- `SourceId`: drop `twitter` (if present), add `"bluesky"` and `"hackernews"`
+- Add labels + domains + `ALL_SOURCES` entries
+- Add `SOURCE_WEIGHT` entries in `fetch.functions.ts`: bluesky 1.0, hackernews 1.3
 
-**Server functions** (`src/lib/feedback/`, all `*.functions.ts`):
+**`src/lib/feedback/fetch.functions.ts`**
+- New `searchBluesky(keyword, timeframe, limit)` — direct fetch, map posts to `RawFeedbackItem`, filter by `indexedAt` for timeframe
+- New `searchHackerNews(keyword, timeframe, limit)` — direct fetch with `numericFilters` for timeframe, map hits (title for stories, comment_text for comments) to `RawFeedbackItem`
+- In the main handler, branch per source: bluesky/hackernews use their own fetcher; reddit/g2/capterra/trustpilot keep using Firecrawl
+- Zod enum updated to include new sources
+- `creditsUsed` only counts Firecrawl-backed sources
 
-- `fetch.functions.ts` — `fetchFeedback({ keyword, sources, timeframe })`
-  - For each selected source, run `firecrawl.search` in parallel with a `site:` filter (e.g. `site:reddit.com "<keyword>"`, `site:twitter.com`, `site:g2.com`, `site:capterra.com`, `site:trustpilot.com`)
-  - Pass `tbs` based on timeframe (`qdr:d|w|m|y`) and `scrapeOptions: { formats: ['markdown'] }` so we get snippet content
-  - Normalize each result into `{ source, url, title, snippet, publishedAt? }`
-  - Hard cap results per source; graceful per-source error fallback `{ data: [], error }`
-- `classify.functions.ts` — heuristic keyword rules for `category` (bug, feature request, praise, complaint, question) + `sentiment` (pos/neu/neg); AI Gateway fallback for ambiguous items, batched
-- `views.functions.ts` — `listViews`, `createView`, `deleteView` with `requireSupabaseAuth`
+**`src/routes/index.tsx` and `src/routes/search.tsx`**
+- Source checkbox list picks up new sources automatically via `ALL_SOURCES`
+- Validate that any Twitter references in default `sources` search param are removed
 
-Public read path (`/search`) calls `fetchFeedback` + `classify` from the component via `useServerFn` (no protected middleware), so unauthenticated users can search. Saving a view requires auth.
+**`src/components/dashboard-stats.tsx` / source-color helpers**
+- Add colors for `bluesky` (sky blue) and `hackernews` (orange) so bar chart + badges render
 
-## UI
-
-Dark editorial theme, warm coral accent, serif headings (Fraunces) + clean sans body (Inter). Semantic tokens in `src/styles.css`; no hardcoded colors in components.
-
-Components:
-- `SearchBar` — keyword input, source multi-select chips, timeframe select
-- `Scorecard` — sentiment %, total mentions, top category, source breakdown
-- `FeedbackSections` — tabs per category, each card shows source badge, snippet, link out
-- `SaveViewDialog` — gated behind auth
-- `AppSidebar` — saved views nav (auth only)
-
-## Build order
-
-1. Enable Lovable Cloud + auth route + `saved_views` migration
-2. Link Firecrawl connector
-3. `fetch.functions.ts` (Firecrawl) + `classify.functions.ts`
-4. `/` landing + `/search` page + components
-5. `/_authenticated/views` + `view/$viewId` + `views.functions.ts`
-6. Verify via build + Playwright run on `/search?q=notion`
+**`src/lib/feedback/classify.ts`**
+- No change; classifier is source-agnostic and works on title+snippet
 
 ## Out of scope
 
-Official platform APIs, multi-user orgs, CSV export, payments, email digests.
+- No X API integration, no RapidAPI scraper, no unofficial Twitter endpoints
+- No database migration (sources are strings; existing saved views with `twitter` in `sources` will just be filtered out client-side by the `ALL_SOURCES` guard already in `search.tsx`)
+
+## Verification
+
+After build: run a search for "notion" with all sources selected — expect real Bluesky posts and HN threads in results, source bar chart shows 6 sources, no 404s.
