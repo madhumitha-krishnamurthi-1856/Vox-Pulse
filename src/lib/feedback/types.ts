@@ -1,4 +1,10 @@
-export type SourceId = "reddit" | "g2" | "capterra" | "trustpilot";
+export type SourceId =
+  | "reddit"
+  | "g2"
+  | "capterra"
+  | "trustpilot"
+  | "bluesky"
+  | "hackernews";
 
 export type Timeframe = "day" | "week" | "month" | "year" | "all";
 
@@ -57,6 +63,8 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
   g2: "G2",
   capterra: "Capterra",
   trustpilot: "Trustpilot",
+  bluesky: "Bluesky",
+  hackernews: "Hacker News",
 };
 
 export const SOURCE_DOMAINS: Record<SourceId, string> = {
@@ -64,6 +72,8 @@ export const SOURCE_DOMAINS: Record<SourceId, string> = {
   g2: "g2.com",
   capterra: "capterra.com",
   trustpilot: "trustpilot.com",
+  bluesky: "bsky.app",
+  hackernews: "news.ycombinator.com",
 };
 
 export const ALL_SOURCES: SourceId[] = [
@@ -71,6 +81,8 @@ export const ALL_SOURCES: SourceId[] = [
   "g2",
   "capterra",
   "trustpilot",
+  "bluesky",
+  "hackernews",
 ];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
