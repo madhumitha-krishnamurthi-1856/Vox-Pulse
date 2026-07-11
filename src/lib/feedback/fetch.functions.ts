@@ -113,6 +113,140 @@ async function fetchCreditsRemaining(apiKey: string): Promise<number | null> {
   } catch { return null; }
 }
 
+const FIRECRAWL_SOURCES: SourceId[] = ["reddit", "g2", "capterra", "trustpilot"];
+
+function timeframeCutoffMs(timeframe: Timeframe): number | null {
+  const now = Date.now();
+  switch (timeframe) {
+    case "day": return now - 24 * 60 * 60 * 1000;
+    case "week": return now - 7 * 24 * 60 * 60 * 1000;
+    case "month": return now - 30 * 24 * 60 * 60 * 1000;
+    case "year": return now - 365 * 24 * 60 * 60 * 1000;
+    default: return null;
+  }
+}
+
+interface BlueskyPost {
+  uri: string;
+  author?: { handle?: string; displayName?: string };
+  record?: { text?: string; createdAt?: string };
+  indexedAt?: string;
+}
+
+async function searchBluesky(
+  keyword: string,
+  timeframe: Timeframe,
+  limit: number,
+): Promise<RawFeedbackItem[]> {
+  const url = new URL(
+    "https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts",
+  );
+  url.searchParams.set("q", keyword);
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 25)));
+  url.searchParams.set("sort", "latest");
+  const res = await fetch(url.toString(), {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Bluesky ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { posts?: BlueskyPost[] };
+  const cutoff = timeframeCutoffMs(timeframe);
+  return (json.posts ?? [])
+    .filter((p) => {
+      if (!cutoff) return true;
+      const t = p.indexedAt ? Date.parse(p.indexedAt) : NaN;
+      return isNaN(t) ? true : t >= cutoff;
+    })
+    .map<RawFeedbackItem | null>((p) => {
+      const handle = p.author?.handle;
+      const rkey = p.uri.split("/").pop();
+      if (!handle || !rkey) return null;
+      const text = (p.record?.text ?? "").trim();
+      if (!text) return null;
+      const displayName = p.author?.displayName ?? handle;
+      return {
+        source: "bluesky",
+        url: `https://bsky.app/profile/${handle}/post/${rkey}`,
+        title: `@${handle}${displayName !== handle ? ` (${displayName})` : ""}`.slice(0, 200),
+        snippet: text.slice(0, 600),
+      };
+    })
+    .filter((x): x is RawFeedbackItem => x !== null);
+}
+
+interface HnHit {
+  objectID: string;
+  title?: string | null;
+  story_title?: string | null;
+  url?: string | null;
+  comment_text?: string | null;
+  story_text?: string | null;
+  author?: string;
+  points?: number | null;
+  num_comments?: number | null;
+  _tags?: string[];
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function searchHackerNews(
+  keyword: string,
+  timeframe: Timeframe,
+  limit: number,
+): Promise<RawFeedbackItem[]> {
+  const url = new URL("https://hn.algolia.com/api/v1/search");
+  url.searchParams.set("query", keyword);
+  url.searchParams.set("tags", "(story,comment)");
+  url.searchParams.set("hitsPerPage", String(Math.min(Math.max(limit, 1), 25)));
+  const cutoff = timeframeCutoffMs(timeframe);
+  if (cutoff) {
+    url.searchParams.set(
+      "numericFilters",
+      `created_at_i>${Math.floor(cutoff / 1000)}`,
+    );
+  }
+  const res = await fetch(url.toString(), {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Hacker News ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { hits?: HnHit[] };
+  return (json.hits ?? [])
+    .map<RawFeedbackItem | null>((h) => {
+      const isComment = (h._tags ?? []).includes("comment");
+      const title = (h.title ?? h.story_title ?? "").trim();
+      const bodyHtml = isComment ? h.comment_text ?? "" : h.story_text ?? "";
+      const body = stripHtml(bodyHtml);
+      const displayTitle = isComment
+        ? `Comment on: ${title || "HN thread"}`
+        : title;
+      const snippet = body || title;
+      if (!displayTitle || !snippet) return null;
+      const itemUrl = `https://news.ycombinator.com/item?id=${h.objectID}`;
+      return {
+        source: "hackernews",
+        url: itemUrl,
+        title: displayTitle.slice(0, 200),
+        snippet: snippet.slice(0, 600),
+      };
+    })
+    .filter((x): x is RawFeedbackItem => x !== null);
+}
+
 const SOURCE_WEIGHT: Record<SourceId, number> = {
   g2: 2.0,
   capterra: 2.0,
