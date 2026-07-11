@@ -328,6 +328,12 @@ export const fetchFeedback = createServerFn({ method: "POST" })
       Promise.all(
         data.sources.map(async (source) => {
           try {
+            if (source === "bluesky") {
+              return await searchBluesky(data.keyword, data.timeframe, data.perSourceLimit);
+            }
+            if (source === "hackernews") {
+              return await searchHackerNews(data.keyword, data.timeframe, data.perSourceLimit);
+            }
             return await searchSource(
               source,
               data.keyword,
@@ -362,7 +368,9 @@ export const fetchFeedback = createServerFn({ method: "POST" })
       items,
       scorecard: buildScorecard(items),
       errors,
-      creditsUsed: data.sources.length * data.perSourceLimit,
+      creditsUsed:
+        data.sources.filter((s) => FIRECRAWL_SOURCES.includes(s)).length *
+        data.perSourceLimit,
       creditsRemaining,
     };
   });
