@@ -318,8 +318,9 @@ function buildScorecard(items: FeedbackItem[]): Scorecard {
 export const fetchFeedback = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => inputSchema.parse(input))
   .handler(async ({ data }): Promise<FetchFeedbackResult> => {
-    const apiKey = process.env.FIRECRAWL_API_KEY;
-    if (!apiKey) {
+    const needsFirecrawl = data.sources.some((s) => FIRECRAWL_SOURCES.includes(s));
+    const apiKey = process.env.FIRECRAWL_API_KEY ?? "";
+    if (needsFirecrawl && !apiKey) {
       throw new Error("FIRECRAWL_API_KEY is not configured");
     }
 
@@ -348,7 +349,7 @@ export const fetchFeedback = createServerFn({ method: "POST" })
           }
         }),
       ),
-      fetchCreditsRemaining(apiKey),
+      apiKey ? fetchCreditsRemaining(apiKey) : Promise.resolve(null),
     ]);
 
     const items: FeedbackItem[] = results.flat().map((raw, idx) => {
