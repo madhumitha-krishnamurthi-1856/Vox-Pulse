@@ -16,7 +16,18 @@ import {
 
 const inputSchema = z.object({
   keyword: z.string().trim().min(2).max(120),
-  sources: z.array(z.enum(["reddit", "g2", "capterra", "trustpilot"])).min(1),
+  sources: z
+    .array(
+      z.enum([
+        "reddit",
+        "g2",
+        "capterra",
+        "trustpilot",
+        "bluesky",
+        "hackernews",
+      ]),
+    )
+    .min(1),
   timeframe: z.enum(["day", "week", "month", "year", "all"]).default("month"),
   perSourceLimit: z.number().int().min(1).max(15).default(8),
 });
@@ -107,6 +118,8 @@ const SOURCE_WEIGHT: Record<SourceId, number> = {
   capterra: 2.0,
   reddit: 0.8,
   trustpilot: 1.5,
+  bluesky: 1.0,
+  hackernews: 1.3,
 };
 
 function buildScorecard(items: FeedbackItem[]): Scorecard {
