@@ -304,7 +304,7 @@ function SearchPage() {
               )}
 
               {/* ④ Detailed feedback — scroll-to area */}
-              <div>
+              <div id="feedback-detail">
                 <div className="mb-3 flex items-center gap-2">
                   <h2 className="text-sm font-semibold text-foreground">Detailed Feedback</h2>
                   <span className="text-xs text-muted-foreground">— filtered &amp; classified by source</span>

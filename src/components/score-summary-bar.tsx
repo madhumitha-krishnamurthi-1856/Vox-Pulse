@@ -1,5 +1,6 @@
-import { ExternalLink, Star, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { ExternalLink, Info, Star, TrendingDown, TrendingUp, Minus } from "lucide-react";
 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getRatings } from "@/lib/feedback/known-ratings";
 import type { Scorecard } from "@/lib/feedback/types";
 
@@ -48,9 +49,29 @@ export function ScoreSummaryBar({ scorecard, keyword }: { scorecard: Scorecard; 
       {/* Sentiment score */}
       <div className="flex items-center gap-2.5 px-5 py-3.5">
         <div className="flex flex-col">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Sentiment
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              Sentiment
+            </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="text-muted-foreground hover:text-foreground transition-colors" aria-label="How is this score calculated?">
+                  <Info className="h-3 w-3" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="bottom" align="start" className="w-72 text-xs space-y-2 p-4">
+                <p className="font-semibold text-sm">How the score is calculated</p>
+                <p className="text-muted-foreground leading-relaxed">Each item is weighted by <strong>source trust</strong> (G2 & Capterra = 2×, Reddit = 0.8×) and <strong>sentiment strength</strong>:</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  <li>🟢 Positive high-impact (e.g. "game-changer"): 1.5×</li>
+                  <li>🟡 Positive low: 1.0× · ⚪ Neutral: 0.5×</li>
+                  <li>🟠 Negative minor: 1.0× · 🔴 Major bug: 1.5×</li>
+                  <li>🚨 Critical (outage/data loss): 2.0×</li>
+                </ul>
+                <p className="text-muted-foreground">Formula: <code className="bg-muted px-1 rounded">50 + (pos − neg) ÷ total × 50</code>. Always 0–100. Score 50 = neutral; above 65 = rising, below 40 = falling.</p>
+              </PopoverContent>
+            </Popover>
+          </div>
           <div className="flex items-baseline gap-1.5 mt-0.5">
             <span className={`font-serif text-2xl font-semibold ${SCORE_COLOR(scorecard.score)}`}>
               {scorecard.score}
