@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Bookmark } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,12 +28,23 @@ export function SaveViewDialog({ keyword, sources, timeframe }: Props) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(keyword);
   const { addView } = useSavedViews();
+  const navigate = useNavigate();
 
   const onSave = () => {
     if (!name.trim()) return;
-    addView({ name: name.trim(), keyword, sources, timeframe });
+    const view = addView({ name: name.trim(), keyword, sources, timeframe });
     toast.success("View saved");
     setOpen(false);
+    navigate({
+      to: "/search",
+      search: {
+        q: keyword,
+        sources: sources.join(","),
+        timeframe,
+        view: view.id,
+      },
+      replace: true,
+    });
   };
 
   return (
