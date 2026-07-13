@@ -5,12 +5,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link2, RefreshCw, Zap } from "lucide-react";
 import { z } from "zod";
 
+import { ActionReport } from "@/components/action-report";
 import { AppShell } from "@/components/app-shell";
 import { DashboardStats, TopThemes } from "@/components/dashboard-stats";
 import { EditViewDialog } from "@/components/edit-view-dialog";
 import { FeedbackSections } from "@/components/feedback-sections";
 import { FilterBar } from "@/components/filter-bar";
-import { PlatformRatings } from "@/components/platform-ratings";
+import { ScoreSummaryBar } from "@/components/score-summary-bar";
 import { SaveViewDialog } from "@/components/save-view-dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -251,22 +252,23 @@ function SearchPage() {
           </div>
         </div>
 
-        <div className="mt-8 space-y-6">
+        <div className="mt-8 space-y-5">
           {!enabled ? (
             <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
               Enter a keyword and pick at least one source to start listening.
             </div>
           ) : query.isLoading ? (
             <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-56 w-full" />
+              <Skeleton className="h-14 w-full rounded-xl" />
+              <Skeleton className="h-40 w-full" />
+              <div className="grid gap-3 md:grid-cols-2">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-48 w-full" />
                 ))}
               </div>
-              <Skeleton className="h-24 w-full" />
               <div className="grid gap-3 md:grid-cols-2">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-36 w-full" />
+                  <Skeleton key={i} className="h-28 w-full" />
                 ))}
               </div>
             </>
@@ -276,9 +278,22 @@ function SearchPage() {
             </div>
           ) : query.data ? (
             <>
-              <DashboardStats scorecard={query.data.scorecard} items={query.data.items} />
-              <TopThemes scorecard={query.data.scorecard} />
-              <PlatformRatings keyword={q} />
+              {/* ① Scores inline bar */}
+              <ScoreSummaryBar scorecard={query.data.scorecard} keyword={q} />
+
+              {/* ② Action report — the "what to do" summary */}
+              <ActionReport items={query.data.items} />
+
+              {/* ③ Compact charts + themes side by side */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="md:col-span-2">
+                  <DashboardStats scorecard={query.data.scorecard} items={query.data.items} compact />
+                </div>
+                <div>
+                  <TopThemes scorecard={query.data.scorecard} />
+                </div>
+              </div>
+
               {Object.keys(query.data.errors).length > 0 && (
                 <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs text-foreground/70">
                   Some sources returned no results:{" "}
@@ -287,26 +302,36 @@ function SearchPage() {
                     .join(", ")}
                 </div>
               )}
-              <FilterBar
-                sources={sourceList}
-                activeSources={activeSources}
-                toggleSource={(s) => {
-                  setActiveSources((cur) => {
-                    const next = new Set(cur);
-                    if (next.has(s)) next.delete(s);
-                    else next.add(s);
-                    return next;
-                  });
-                }}
-                themes={query.data.scorecard.themes}
-                themeFilter={themeFilter}
-                setThemeFilter={setThemeFilter}
-                query={textQ}
-                setQuery={setTextQ}
-                shown={filteredItems.length}
-                total={query.data.items.length}
-              />
-              <FeedbackSections items={filteredItems} />
+
+              {/* ④ Detailed feedback — scroll-to area */}
+              <div>
+                <div className="mb-3 flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-foreground">Detailed Feedback</h2>
+                  <span className="text-xs text-muted-foreground">— filtered &amp; classified by source</span>
+                </div>
+                <FilterBar
+                  sources={sourceList}
+                  activeSources={activeSources}
+                  toggleSource={(s) => {
+                    setActiveSources((cur) => {
+                      const next = new Set(cur);
+                      if (next.has(s)) next.delete(s);
+                      else next.add(s);
+                      return next;
+                    });
+                  }}
+                  themes={query.data.scorecard.themes}
+                  themeFilter={themeFilter}
+                  setThemeFilter={setThemeFilter}
+                  query={textQ}
+                  setQuery={setTextQ}
+                  shown={filteredItems.length}
+                  total={query.data.items.length}
+                />
+                <div className="mt-3">
+                  <FeedbackSections items={filteredItems} />
+                </div>
+              </div>
             </>
           ) : null}
         </div>

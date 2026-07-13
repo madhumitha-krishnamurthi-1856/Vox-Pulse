@@ -105,9 +105,11 @@ function trendIcon(t: Scorecard["trend"]) {
 export function DashboardStats({
   scorecard,
   items,
+  compact = false,
 }: {
   scorecard: Scorecard;
   items: FeedbackItem[];
+  compact?: boolean;
 }) {
   const c = useThemeColors();
   const breakdown = [
@@ -138,6 +140,58 @@ export function DashboardStats({
           return { x: i + 1, score: Math.max(0, Math.min(100, score)) };
         })
       : [];
+
+  const chartH = compact ? 140 : 200;
+  const barH = compact ? 160 : 240;
+
+  if (compact) {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Breakdown">
+          <div style={{ height: chartH }}>
+            {breakdown.length === 0 ? (
+              <div className="grid h-full place-items-center text-xs text-muted-foreground">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={breakdown} dataKey="value" nameKey="name" innerRadius={35} outerRadius={58} paddingAngle={2} stroke="none">
+                    {breakdown.map((d, i) => <Cell key={i} fill={d.fill} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 8, border: `1px solid ${c.border}`, fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px]">
+            {breakdown.map((d) => (
+              <span key={d.name} className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: d.fill }} />
+                <span className="text-muted-foreground">{d.name}</span>
+                <span className="font-medium">{d.value}</span>
+              </span>
+            ))}
+          </div>
+        </StatCard>
+
+        <StatCard label="Volume by Source">
+          <div style={{ height: barH }}>
+            {volume.length === 0 ? (
+              <div className="grid h-full place-items-center text-xs text-muted-foreground">No data</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={volume} margin={{ top: 8, right: 6, left: -22, bottom: 24 }}>
+                  <XAxis dataKey="source" tick={{ fontSize: 9, fill: c.mutedFg }} axisLine={false} tickLine={false} interval={0} angle={-20} textAnchor="end" height={32} />
+                  <YAxis tick={{ fontSize: 9, fill: c.mutedFg }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
+                  <Tooltip cursor={{ fill: c.muted }} contentStyle={{ borderRadius: 8, border: `1px solid ${c.border}`, fontSize: 11 }} />
+                  <Bar dataKey="count" fill={c.primary} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </StatCard>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
