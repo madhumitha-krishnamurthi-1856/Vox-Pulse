@@ -159,20 +159,20 @@ function ActionRow({ action, detailRef }: { action: ActionItem; detailRef: strin
   const remaining = action.items.length - preview.length;
 
   return (
-    <div className={`rounded-lg border border-border/50 overflow-hidden transition-all ${open ? "shadow-sm" : ""}`}>
+    <div className={`rounded-lg border overflow-hidden transition-all duration-150 ${open ? "border-border shadow-sm" : "border-border/60 hover:border-border hover:shadow-sm"}`}>
       {/* Header row — clickable */}
       <button
-        className={`w-full flex gap-0 text-left transition-colors ${open ? "bg-muted/30" : "bg-muted/10 hover:bg-muted/25"}`}
+        className={`w-full flex gap-0 text-left cursor-pointer transition-colors duration-150 ${open ? "bg-muted/40" : "bg-card hover:bg-muted/20"}`}
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        {/* Priority bar */}
-        <div className={`w-1 flex-shrink-0 self-stretch ${s.bar}`} />
-        <div className="flex flex-1 items-start gap-3 py-3 px-3">
-          <span className={`mt-0.5 flex-shrink-0 ${s.text}`}>{action.icon}</span>
+        {/* Priority colour bar */}
+        <div className={`w-1.5 flex-shrink-0 self-stretch ${s.bar}`} />
+        <div className="flex flex-1 items-center gap-3 py-3.5 px-4">
+          <span className={`flex-shrink-0 ${s.text}`}>{action.icon}</span>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-foreground">{action.heading}</span>
+              <span className="text-sm font-semibold text-foreground">{action.heading}</span>
               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${s.badge}`}>
                 {PRIORITY_LABEL[action.priority]}
               </span>
@@ -184,8 +184,13 @@ function ActionRow({ action, detailRef }: { action: ActionItem; detailRef: strin
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{action.detail}</p>
           </div>
-          <span className={`flex-shrink-0 mt-0.5 ${s.text}`}>
-            {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {/* Expand/collapse button — visually distinct */}
+          <span className={`flex-shrink-0 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${open ? `${s.badge}` : "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted"}`}>
+            {open ? (
+              <><ChevronUp className="h-3.5 w-3.5" /> Hide</>
+            ) : (
+              <><ChevronDown className="h-3.5 w-3.5" /> View {action.items.length}</>
+            )}
           </span>
         </div>
       </button>
@@ -240,7 +245,7 @@ export function ActionReport({ items, detailSectionId = "feedback-detail" }: { i
             Action Report
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {actions.length} prioritised action{actions.length > 1 ? "s" : ""} · click any row to see related feedback
+            {actions.length} prioritised action{actions.length > 1 ? "s" : ""} · click <strong>View N</strong> on any row to see related feedback
           </p>
         </div>
       </div>
