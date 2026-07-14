@@ -8,9 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
 dist-ssr
 .output
+# dist is committed for Catalyst pre-built deployment (build runs locally, not on Catalyst)
+# dist
 .vinxi
 .tanstack/**
 .nitro
