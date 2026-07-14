@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "build:catalyst": "NITRO_PRESET=node-server vite build && node scripts/copy-dist.mjs",
+    "build:catalyst": "vite build --config vite.config.catalyst.ts && node scripts/copy-dist.mjs",
     "start": "node dist/server/index.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
