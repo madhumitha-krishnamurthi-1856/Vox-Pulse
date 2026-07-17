@@ -7,13 +7,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSavedViews } from "@/hooks/use-saved-views";
 import { cn } from "@/lib/utils";
 
-function scoreTone(score?: number) {
-  if (score === undefined) return "bg-muted text-muted-foreground";
-  if (score >= 65) return "bg-positive/15 text-positive";
-  if (score <= 40) return "bg-negative/15 text-negative";
-  return "bg-warn/20 text-foreground/70";
-}
-
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -33,7 +26,7 @@ export function AppShell({
   title?: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const { views, loaded } = useSavedViews();
   const path = useRouterState({ select: (r) => r.location.pathname });
   const search = useRouterState({ select: (r) => r.location.search }) as unknown as
@@ -101,16 +94,6 @@ export function AppShell({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate font-medium">{v.name}</span>
-                      {v.lastScore !== undefined && (
-                        <span
-                          className={cn(
-                            "rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                            scoreTone(v.lastScore),
-                          )}
-                        >
-                          {v.lastScore}
-                        </span>
-                      )}
                     </div>
                     <div className="mt-0.5 text-[11px] text-muted-foreground">
                       Updated {timeAgo(v.updatedAt)}
