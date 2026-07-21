@@ -1,12 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BarChart3, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
+import { BarChart3, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSavedViews } from "@/hooks/use-saved-views";
 import { cn } from "@/lib/utils";
-
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
@@ -26,7 +25,6 @@ export function AppShell({
   title?: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
   const { views, loaded } = useSavedViews();
   const path = useRouterState({ select: (r) => r.location.pathname });
   const search = useRouterState({ select: (r) => r.location.search }) as unknown as
@@ -39,12 +37,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
-      <aside
-        className={cn(
-          "hidden shrink-0 border-r border-border bg-sidebar transition-[width] md:flex md:flex-col",
-          open ? "w-72" : "w-0 overflow-hidden",
-        )}
-      >
+      <aside className="hidden w-64 shrink-0 border-r border-border bg-sidebar md:flex md:flex-col">
         <div className="flex items-center gap-2 px-5 py-5">
           <Link to="/" className="flex items-center gap-2">
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary/10 text-primary">
@@ -107,18 +100,6 @@ export function AppShell({
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setOpen((o) => !o)}
-            aria-label="Toggle sidebar"
-          >
-            {open ? (
-              <PanelLeftClose className="h-4 w-4" />
-            ) : (
-              <PanelLeftOpen className="h-4 w-4" />
-            )}
-          </Button>
           <span className="text-sm font-medium text-foreground/80">
             {title ?? "Customer Voice Analyser"}
           </span>

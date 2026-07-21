@@ -57,7 +57,7 @@ function buildActionItems(items: FeedbackItem[]): ActionItem[] {
       icon: <Lightbulb className="h-4 w-4" />,
       heading: `${features.length} feature request${features.length > 1 ? "s" : ""} to review`,
       detail: "Users asking for capabilities not yet in the product — route to product management.",
-      persona: ["PM", "Senior PM"],
+      persona: ["PM"],
       items: features,
     });
   }
@@ -119,7 +119,7 @@ const PERSONA_STYLE: Record<string, string> = {
   Engineering: "bg-blue-50 text-blue-700 border-blue-200",
   CTO:         "bg-blue-50 text-blue-700 border-blue-200",
   PM:          "bg-violet-50 text-violet-700 border-violet-200",
-  "Senior PM": "bg-violet-50 text-violet-700 border-violet-200",
+
   Marketing:   "bg-pink-50 text-pink-700 border-pink-200",
   Sales:       "bg-pink-50 text-pink-700 border-pink-200",
   Support:     "bg-cyan-50 text-cyan-700 border-cyan-200",
