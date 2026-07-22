@@ -30,7 +30,7 @@ const CACHE_TTL = 6 * 60 * 60 * 1000;
 
 function getCached(key: string): FetchFeedbackResult | null {
   try {
-    const raw = localStorage.getItem(`vox-pulse:cache:v2:${key}`);
+    const raw = localStorage.getItem(`vox-pulse:cache:v3:${key}`);
     if (!raw) return null;
     const { data, ts } = JSON.parse(raw) as { data: FetchFeedbackResult; ts: number };
     if (Date.now() - ts > CACHE_TTL) return null;
@@ -40,13 +40,13 @@ function getCached(key: string): FetchFeedbackResult | null {
 
 function setCached(key: string, data: FetchFeedbackResult) {
   try {
-    localStorage.setItem(`vox-pulse:cache:v2:${key}`, JSON.stringify({ data, ts: Date.now() }));
+    localStorage.setItem(`vox-pulse:cache:v3:${key}`, JSON.stringify({ data, ts: Date.now() }));
   } catch {}
 }
 
 function getCacheTimestamp(key: string): number | null {
   try {
-    const raw = localStorage.getItem(`vox-pulse:cache:v2:${key}`);
+    const raw = localStorage.getItem(`vox-pulse:cache:v3:${key}`);
     if (!raw) return null;
     const { ts } = JSON.parse(raw) as { ts: number };
     return typeof ts === "number" ? ts : null;
@@ -207,7 +207,7 @@ function SearchPage() {
               size="sm"
               onClick={() => {
                 if (isCached && cacheTs) {
-                  localStorage.removeItem(`vox-pulse:cache:v2:${cacheKey}`);
+                  localStorage.removeItem(`vox-pulse:cache:v3:${cacheKey}`);
                 }
                 query.refetch();
               }}
@@ -232,8 +232,8 @@ function SearchPage() {
                   // Clear cached result for both old and new param combos so re-fetch runs fresh
                   const oldKey = `${q.trim()}|${sourceList.join(",")}|${timeframe}`;
                   const newKey = `${patch.keyword}|${patch.sources.join(",")}|${patch.timeframe}`;
-                  localStorage.removeItem(`vox-pulse:cache:v2:${oldKey}`);
-                  localStorage.removeItem(`vox-pulse:cache:v2:${newKey}`);
+                  localStorage.removeItem(`vox-pulse:cache:v3:${oldKey}`);
+                  localStorage.removeItem(`vox-pulse:cache:v3:${newKey}`);
                   navigate({
                     to: "/search",
                     search: {

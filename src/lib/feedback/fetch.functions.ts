@@ -113,7 +113,7 @@ async function fetchCreditsRemaining(apiKey: string): Promise<number | null> {
   } catch { return null; }
 }
 
-const FIRECRAWL_SOURCES: SourceId[] = ["reddit", "g2", "capterra", "trustpilot"];
+const FIRECRAWL_SOURCES: SourceId[] = ["g2", "capterra", "trustpilot"];
 
 function timeframeCutoffMs(timeframe: Timeframe): number | null {
   const now = Date.now();
@@ -247,6 +247,71 @@ async function searchHackerNews(
     .filter((x): x is RawFeedbackItem => x !== null);
 }
 
+interface RedditPost {
+  data: {
+    id: string;
+    title?: string;
+    selftext?: string;
+    url?: string;
+    permalink?: string;
+    subreddit?: string;
+    created_utc?: number;
+  };
+}
+
+function redditTimeframe(timeframe: Timeframe): string {
+  switch (timeframe) {
+    case "day": return "day";
+    case "week": return "week";
+    case "month": return "month";
+    case "year": return "year";
+    default: return "all";
+  }
+}
+
+async function searchReddit(
+  keyword: string,
+  timeframe: Timeframe,
+  limit: number,
+): Promise<RawFeedbackItem[]> {
+  const url = new URL("https://www.reddit.com/search.json");
+  url.searchParams.set("q", keyword);
+  url.searchParams.set("sort", "new");
+  url.searchParams.set("t", redditTimeframe(timeframe));
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 25)));
+  url.searchParams.set("type", "link");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "vox-pulse/1.0",
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Reddit ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { data?: { children?: RedditPost[] } };
+  return (json.data?.children ?? [])
+    .map<RawFeedbackItem | null>((child) => {
+      const p = child.data;
+      if (!p.id) return null;
+      const permalink = p.permalink
+        ? `https://www.reddit.com${p.permalink}`
+        : `https://www.reddit.com/search/?q=${encodeURIComponent(keyword)}`;
+      const title = (p.title ?? "").trim();
+      const snippet = (p.selftext ?? p.title ?? "").trim();
+      if (!title) return null;
+      return {
+        source: "reddit" as SourceId,
+        url: permalink,
+        title: title.slice(0, 200),
+        snippet: snippet.slice(0, 600),
+      };
+    })
+    .filter((x): x is RawFeedbackItem => x !== null);
+}
+
 const SOURCE_WEIGHT: Record<SourceId, number> = {
   g2: 2.0,
   capterra: 2.0,
@@ -334,6 +399,9 @@ export const fetchFeedback = createServerFn({ method: "POST" })
             }
             if (source === "hackernews") {
               return await searchHackerNews(data.keyword, data.timeframe, data.perSourceLimit);
+            }
+            if (source === "reddit") {
+              return await searchReddit(data.keyword, data.timeframe, data.perSourceLimit);
             }
             return await searchSource(
               source,
