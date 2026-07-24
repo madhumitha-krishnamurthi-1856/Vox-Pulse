@@ -54,6 +54,51 @@ interface FirecrawlSearchResult {
   markdown?: string;
 }
 
+// URL segments that indicate non-review pages (comparisons, directories, ads, etc.)
+const IRRELEVANT_URL_SEGMENTS: Record<string, string[]> = {
+  g2: ["/compare/", "/categories/", "/search", "/alternatives/", "/competitors/", "/vs/", "/sponsored/"],
+  capterra: ["/directory/", "/compare/", "/alternatives/", "/research/", "/categories/", "/search"],
+  trustpilot: ["/categories/", "/search/", "/blog/", "/business/"],
+};
+
+// Returns false if the result is clearly about a different product (keyword barely mentioned)
+function isRelevantResult(source: SourceId, keyword: string, url: string, title: string, snippet: string): boolean {
+  const kw = keyword.toLowerCase();
+  const titleL = title.toLowerCase();
+  const snippetL = snippet.toLowerCase();
+  const urlL = url.toLowerCase();
+
+  // Drop known irrelevant URL patterns for this source
+  const badSegments = IRRELEVANT_URL_SEGMENTS[source] ?? [];
+  if (badSegments.some((seg) => urlL.includes(seg))) return false;
+
+  // G2/Capterra: drop pages where the title is clearly about a different product
+  // (keyword appears only in snippet, and title mentions another product with "reviews")
+  if (source === "g2" || source === "capterra") {
+    const titleHasKeyword = titleL.includes(kw);
+    const titleHasReviews = titleL.includes("review");
+    // Title is a review page for something else — keyword only appears in passing
+    if (titleHasReviews && !titleHasKeyword) return false;
+    // Drop comparison titles like "X vs Y" where keyword is just Y
+    if ((titleL.includes(" vs ") || titleL.includes(" versus ")) && !titleL.startsWith(kw)) return false;
+    // Drop "alternatives to X" pages
+    if (titleL.includes("alternative") || titleL.includes("competitor")) return false;
+  }
+
+  // Ensure keyword actually appears in title or snippet
+  if (!titleL.includes(kw) && !snippetL.includes(kw)) return false;
+
+  return true;
+}
+
+function buildSourceQuery(source: SourceId, keyword: string): string {
+  // For review sites, add "review" to the query to surface review pages over comparisons
+  if (source === "g2") return `site:g2.com "${keyword}" review`;
+  if (source === "capterra") return `site:capterra.com "${keyword}" review`;
+  if (source === "trustpilot") return `site:trustpilot.com "${keyword}"`;
+  return `site:${SOURCE_DOMAINS[source]} "${keyword}"`;
+}
+
 async function searchSource(
   source: SourceId,
   keyword: string,
@@ -61,10 +106,11 @@ async function searchSource(
   perSourceLimit: number,
   apiKey: string,
 ): Promise<RawFeedbackItem[]> {
-  const query = `site:${SOURCE_DOMAINS[source]} "${keyword}"`;
+  // Fetch more than needed so we have room to filter irrelevant results
+  const fetchLimit = Math.min(perSourceLimit * 2, 15);
   const body: Record<string, unknown> = {
-    query,
-    limit: perSourceLimit,
+    query: buildSourceQuery(source, keyword),
+    limit: fetchLimit,
     sources: ["web"],
   };
   const tbs = tbsFor(timeframe);
@@ -93,7 +139,13 @@ async function searchSource(
     : (json.data?.web ?? []);
 
   return raw
-    .filter((r) => r.url && (r.title || r.description))
+    .filter((r) => {
+      if (!r.url || (!r.title && !r.description)) return false;
+      const title = r.title ?? "";
+      const snippet = r.description ?? r.markdown ?? "";
+      return isRelevantResult(source, keyword, r.url, title, snippet);
+    })
+    .slice(0, perSourceLimit)
     .map<RawFeedbackItem>((r) => ({
       source,
       url: r.url!,
