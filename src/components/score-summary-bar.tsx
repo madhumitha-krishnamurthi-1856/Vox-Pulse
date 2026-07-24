@@ -2,7 +2,7 @@ import { ExternalLink, Info, Star, TrendingDown, TrendingUp, Minus } from "lucid
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getRatings } from "@/lib/feedback/known-ratings";
-import type { Scorecard } from "@/lib/feedback/types";
+import type { ExtractedRatings, Scorecard } from "@/lib/feedback/types";
 
 function MiniStars({ score, color }: { score: number; color: string }) {
   const filled = Math.round(score);
@@ -24,23 +24,23 @@ function TrendIcon({ trend }: { trend: Scorecard["trend"] }) {
 const SCORE_COLOR = (s: number) =>
   s >= 65 ? "text-emerald-600" : s <= 40 ? "text-red-500" : "text-amber-600";
 
-export function ScoreSummaryBar({ scorecard, keyword }: { scorecard: Scorecard; keyword: string }) {
-  const ratings = getRatings(keyword);
+export function ScoreSummaryBar({ scorecard, keyword, extractedRatings }: { scorecard: Scorecard; keyword: string; extractedRatings?: ExtractedRatings }) {
+  const known = getRatings(keyword);
 
   const platforms = [
     {
       key: "g2" as const,
       label: "G2",
       color: "#FF492C",
-      score: ratings?.g2 ?? null,
-      url: ratings?.g2Url ?? `https://www.g2.com/search?q=${encodeURIComponent(keyword)}`,
+      score: known?.g2 ?? extractedRatings?.g2 ?? null,
+      url: known?.g2Url ?? extractedRatings?.g2Url ?? `https://www.g2.com/search?q=${encodeURIComponent(keyword)}`,
     },
     {
       key: "capterra" as const,
       label: "Capterra",
       color: "#3E86F5",
-      score: ratings?.capterra ?? null,
-      url: ratings?.capterraUrl ?? `https://www.capterra.com/search/?query=${encodeURIComponent(keyword)}`,
+      score: known?.capterra ?? extractedRatings?.capterra ?? null,
+      url: known?.capterraUrl ?? extractedRatings?.capterraUrl ?? `https://www.capterra.com/search/?query=${encodeURIComponent(keyword)}`,
     },
   ];
 

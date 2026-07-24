@@ -279,7 +279,7 @@ function SearchPage() {
           ) : query.data ? (
             <>
               {/* ① Scores inline bar */}
-              <ScoreSummaryBar scorecard={query.data.scorecard} keyword={q} />
+              <ScoreSummaryBar scorecard={query.data.scorecard} keyword={q} extractedRatings={query.data.extractedRatings} />
 
               {/* ② Action report — the "what to do" summary */}
               <ActionReport items={query.data.items} />

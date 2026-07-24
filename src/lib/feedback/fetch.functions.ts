@@ -6,6 +6,7 @@ import {
   ALL_SOURCES,
   SOURCE_DOMAINS,
   type Category,
+  type ExtractedRatings,
   type FeedbackItem,
   type FetchFeedbackResult,
   type RawFeedbackItem,
@@ -54,12 +55,59 @@ interface FirecrawlSearchResult {
   markdown?: string;
 }
 
+// Extracts a rating out of 5 from G2/Capterra snippet text.
+// Handles patterns like: "4.5 out of 5", "4.5/5", "Rating: 4.5", "4.5 stars", "4.5 · 1,234 reviews"
+function extractRating(text: string): number | null {
+  const patterns = [
+    /(\d+\.?\d*)\s*(?:out of\s*5|\/\s*5)/i,
+    /rating[:\s]+(\d+\.?\d*)/i,
+    /(\d+\.?\d*)\s*stars?/i,
+    /(\d+\.?\d*)\s*·\s*[\d,]+\s*reviews?/i,
+    /(\d+\.?\d*)\s*\(\s*[\d,]+\s*reviews?\s*\)/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m) {
+      const val = parseFloat(m[1]);
+      if (val >= 1 && val <= 5) return Math.round(val * 10) / 10;
+    }
+  }
+  return null;
+}
+
 // URL segments that indicate non-review pages (comparisons, directories, ads, etc.)
 const IRRELEVANT_URL_SEGMENTS: Record<string, string[]> = {
   g2: ["/compare/", "/categories/", "/search", "/alternatives/", "/competitors/", "/vs/", "/sponsored/"],
   capterra: ["/directory/", "/compare/", "/alternatives/", "/research/", "/categories/", "/search"],
   trustpilot: ["/categories/", "/search/", "/blog/", "/business/"],
 };
+
+// Terms that indicate software/SaaS product feedback context
+const SAAS_TERMS = [
+  "software", "app", "tool", "platform", "product", "service", "feature", "bug",
+  "review", "pricing", "plan", "subscription", "integration", "api", "workflow",
+  "dashboard", "ui", "ux", "interface", "support", "onboarding", "update", "release",
+  "saas", "b2b", "crm", "erp", "project management", "team", "workspace",
+];
+
+// Subreddits clearly unrelated to software products
+const NON_TECH_SUBREDDITS = [
+  "r/yoga", "r/meditation", "r/transcendental", "r/fitness", "r/spirituality",
+  "r/philosophy", "r/hinduism", "r/ayurveda", "r/wellness",
+];
+
+// HackerNews post patterns that are not product feedback
+const HN_NOISE_PATTERNS = [
+  /ask hn: who wants to be hired/i,
+  /ask hn: who is hiring/i,
+  /ask hn: freelancer/i,
+  /show hn:/i,
+];
+
+function isSaasContext(title: string, snippet: string): boolean {
+  const text = `${title} ${snippet}`.toLowerCase();
+  return SAAS_TERMS.some((term) => text.includes(term));
+}
 
 // Returns false if the result is clearly about a different product (keyword barely mentioned)
 function isRelevantResult(source: SourceId, keyword: string, url: string, title: string, snippet: string): boolean {
@@ -99,13 +147,19 @@ function buildSourceQuery(source: SourceId, keyword: string): string {
   return `site:${SOURCE_DOMAINS[source]} "${keyword}"`;
 }
 
+interface SourceResult {
+  items: RawFeedbackItem[];
+  rating: number | null;
+  ratingUrl: string | null;
+}
+
 async function searchSource(
   source: SourceId,
   keyword: string,
   timeframe: Timeframe,
   perSourceLimit: number,
   apiKey: string,
-): Promise<RawFeedbackItem[]> {
+): Promise<SourceResult> {
   // Fetch more than needed so we have room to filter irrelevant results
   const fetchLimit = Math.min(perSourceLimit * 2, 15);
   const body: Record<string, unknown> = {
@@ -138,20 +192,36 @@ async function searchSource(
     ? json.data
     : (json.data?.web ?? []);
 
-  return raw
-    .filter((r) => {
-      if (!r.url || (!r.title && !r.description)) return false;
-      const title = r.title ?? "";
-      const snippet = r.description ?? r.markdown ?? "";
-      return isRelevantResult(source, keyword, r.url, title, snippet);
-    })
-    .slice(0, perSourceLimit)
-    .map<RawFeedbackItem>((r) => ({
+  const relevant = raw.filter((r) => {
+    if (!r.url || (!r.title && !r.description)) return false;
+    const title = r.title ?? "";
+    const snippet = r.description ?? r.markdown ?? "";
+    return isRelevantResult(source, keyword, r.url, title, snippet);
+  });
+
+  // Try to extract platform rating from the first relevant result's snippet
+  let rating: number | null = null;
+  let ratingUrl: string | null = null;
+  for (const r of relevant) {
+    const text = `${r.title ?? ""} ${r.description ?? r.markdown ?? ""}`;
+    const found = extractRating(text);
+    if (found !== null) {
+      rating = found;
+      ratingUrl = r.url ?? null;
+      break;
+    }
+  }
+
+  return {
+    items: relevant.slice(0, perSourceLimit).map<RawFeedbackItem>((r) => ({
       source,
       url: r.url!,
       title: (r.title ?? "").slice(0, 200),
       snippet: (r.description ?? r.markdown ?? "").slice(0, 600),
-    }));
+    })),
+    rating,
+    ratingUrl,
+  };
 }
 
 async function fetchCreditsRemaining(apiKey: string): Promise<number | null> {
@@ -294,11 +364,83 @@ async function searchHackerNews(
         : title;
       const snippet = body || title;
       if (!displayTitle || !snippet) return null;
+      // Drop job boards and hiring threads
+      if (HN_NOISE_PATTERNS.some((re) => re.test(title))) return null;
+      // Drop results with no SaaS/product context
+      if (!isSaasContext(displayTitle, snippet)) return null;
       const itemUrl = `https://news.ycombinator.com/item?id=${h.objectID}`;
       return {
         source: "hackernews",
         url: itemUrl,
         title: displayTitle.slice(0, 200),
+        snippet: snippet.slice(0, 600),
+      };
+    })
+    .filter((x): x is RawFeedbackItem => x !== null);
+}
+
+interface RedditPost {
+  data: {
+    id: string;
+    title?: string;
+    selftext?: string;
+    url?: string;
+    permalink?: string;
+    subreddit?: string;
+    created_utc?: number;
+  };
+}
+
+function redditTimeframe(timeframe: Timeframe): string {
+  switch (timeframe) {
+    case "day": return "day";
+    case "week": return "week";
+    case "month": return "month";
+    case "year": return "year";
+    default: return "all";
+  }
+}
+
+async function searchReddit(
+  keyword: string,
+  timeframe: Timeframe,
+  limit: number,
+): Promise<RawFeedbackItem[]> {
+  const url = new URL("https://www.reddit.com/search.json");
+  url.searchParams.set("q", `${keyword} software`);
+  url.searchParams.set("sort", "new");
+  url.searchParams.set("t", redditTimeframe(timeframe));
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 25)));
+  url.searchParams.set("type", "link");
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "vox-pulse/1.0",
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Reddit ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const json = (await res.json()) as { data?: { children?: RedditPost[] } };
+  return (json.data?.children ?? [])
+    .map<RawFeedbackItem | null>((child) => {
+      const p = child.data;
+      if (!p.id) return null;
+      const sub = `r/${(p.subreddit ?? "").toLowerCase()}`;
+      if (NON_TECH_SUBREDDITS.some((s) => sub === s)) return null;
+      const permalink = p.permalink
+        ? `https://www.reddit.com${p.permalink}`
+        : `https://www.reddit.com/search/?q=${encodeURIComponent(keyword)}`;
+      const title = (p.title ?? "").trim();
+      const snippet = (p.selftext ?? p.title ?? "").trim();
+      if (!title) return null;
+      if (!isSaasContext(title, snippet)) return null;
+      return {
+        source: "reddit" as SourceId,
+        url: permalink,
+        title: title.slice(0, 200),
         snippet: snippet.slice(0, 600),
       };
     })
@@ -383,33 +525,40 @@ export const fetchFeedback = createServerFn({ method: "POST" })
     }
 
     const errors: Partial<Record<SourceId, string>> = {};
-    const [results, creditsRemaining] = await Promise.all([
+    const extractedRatings: ExtractedRatings = { g2: null, capterra: null, g2Url: null, capterraUrl: null };
+
+    const [sourceResults, creditsRemaining] = await Promise.all([
       Promise.all(
         data.sources.map(async (source) => {
           try {
             if (source === "bluesky") {
-              return await searchBluesky(data.keyword, data.timeframe, data.perSourceLimit);
+              return { items: await searchBluesky(data.keyword, data.timeframe, data.perSourceLimit), rating: null, ratingUrl: null };
             }
             if (source === "hackernews") {
-              return await searchHackerNews(data.keyword, data.timeframe, data.perSourceLimit);
+              return { items: await searchHackerNews(data.keyword, data.timeframe, data.perSourceLimit), rating: null, ratingUrl: null };
             }
-            return await searchSource(
-              source,
-              data.keyword,
-              data.timeframe,
-              data.perSourceLimit,
-              apiKey,
-            );
+            if (source === "reddit") {
+              return { items: await searchReddit(data.keyword, data.timeframe, data.perSourceLimit), rating: null, ratingUrl: null };
+            }
+            return await searchSource(source, data.keyword, data.timeframe, data.perSourceLimit, apiKey);
           } catch (err) {
             console.error(`[fetchFeedback] ${source} failed`, err);
             errors[source] = err instanceof Error ? err.message : String(err);
-            return [] as RawFeedbackItem[];
+            return { items: [] as RawFeedbackItem[], rating: null, ratingUrl: null };
           }
         }),
       ),
       apiKey ? fetchCreditsRemaining(apiKey) : Promise.resolve(null),
     ]);
 
+    // Collect extracted ratings from G2/Capterra results
+    data.sources.forEach((source, idx) => {
+      const r = sourceResults[idx];
+      if (source === "g2" && r.rating !== null) { extractedRatings.g2 = r.rating; extractedRatings.g2Url = r.ratingUrl; }
+      if (source === "capterra" && r.rating !== null) { extractedRatings.capterra = r.rating; extractedRatings.capterraUrl = r.ratingUrl; }
+    });
+
+    const results = sourceResults.map((r) => r.items);
     const items: FeedbackItem[] = results.flat().map((raw, idx) => {
       const c = classifyItem(raw);
       return {
@@ -431,5 +580,6 @@ export const fetchFeedback = createServerFn({ method: "POST" })
         data.sources.filter((s) => FIRECRAWL_SOURCES.includes(s)).length *
         data.perSourceLimit,
       creditsRemaining,
+      extractedRatings,
     };
   });

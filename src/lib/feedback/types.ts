@@ -50,12 +50,20 @@ export interface Scorecard {
   themes: { category: Category; count: number }[];
 }
 
+export interface ExtractedRatings {
+  g2: number | null;
+  capterra: number | null;
+  g2Url: string | null;
+  capterraUrl: string | null;
+}
+
 export interface FetchFeedbackResult {
   items: FeedbackItem[];
   scorecard: Scorecard;
   errors: Partial<Record<SourceId, string>>;
   creditsUsed: number;
   creditsRemaining: number | null;
+  extractedRatings: ExtractedRatings;
 }
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
