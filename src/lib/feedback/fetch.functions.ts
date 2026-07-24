@@ -165,7 +165,10 @@ async function fetchCreditsRemaining(apiKey: string): Promise<number | null> {
   } catch { return null; }
 }
 
-const FIRECRAWL_SOURCES: SourceId[] = ["g2", "capterra", "trustpilot"];
+const FIRECRAWL_SOURCES: SourceId[] = ["g2", "capterra", "trustpilot", "reddit"];
+
+const BSKY_UA =
+  "Mozilla/5.0 (compatible; VoxPulseBot/1.0; +https://voxpuls.lovable.app)";
 
 function timeframeCutoffMs(timeframe: Timeframe): number | null {
   const now = Date.now();
@@ -197,7 +200,10 @@ async function searchBluesky(
   url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 25)));
   url.searchParams.set("sort", "latest");
   const res = await fetch(url.toString(), {
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      "User-Agent": BSKY_UA,
+    },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
