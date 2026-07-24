@@ -458,9 +458,6 @@ export const fetchFeedback = createServerFn({ method: "POST" })
             if (source === "hackernews") {
               return await searchHackerNews(data.keyword, data.timeframe, data.perSourceLimit);
             }
-            if (source === "reddit") {
-              return await searchReddit(data.keyword, data.timeframe, data.perSourceLimit);
-            }
             return await searchSource(
               source,
               data.keyword,
